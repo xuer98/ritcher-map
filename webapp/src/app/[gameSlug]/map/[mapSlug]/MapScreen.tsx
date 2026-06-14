@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getMarkers, type CatalogMarker } from '@/lib/api/maps';
-import { useAuth } from '@/lib/auth/AuthContext';
-import { LoginForm } from '@/lib/auth/LoginForm';
-import { BrandTheme } from '@/lib/branding/BrandTheme';
-import { resolveAssetUrl, resolveIconUrl } from '@/lib/icons';
-import { MarkerBody } from '@/lib/markdown/MarkerBody';
-import { CategoryIcon } from '@/lib/panels/CategoryIcon';
-import { CategoryPanel } from '@/lib/panels/CategoryPanel';
-import { useProgressSync } from '@/lib/progress/useProgressSync';
-import type { CategoryResponse, GameResponse, MapResponse } from '@/lib/types';
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { getMarkers, type CatalogMarker } from "@/lib/api/maps";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { LoginForm } from "@/lib/auth/LoginForm";
+import { BrandTheme } from "@/lib/branding/BrandTheme";
+import { resolveAssetUrl, resolveIconUrl } from "@/lib/icons";
+import { MarkerBody } from "@/lib/markdown/MarkerBody";
+import { CategoryIcon } from "@/lib/panels/CategoryIcon";
+import { CategoryPanel } from "@/lib/panels/CategoryPanel";
+import { useProgressSync } from "@/lib/progress/useProgressSync";
+import type { CategoryResponse, GameResponse, MapResponse } from "@/lib/types";
 
 // MapLibre needs the DOM/WebGL — the single ssr:false boundary of the app.
-const MapView = dynamic(() => import('@/lib/map/MapView'), { ssr: false });
+const MapView = dynamic(() => import("@/lib/map/MapView"), { ssr: false });
 
 export interface MapScreenProps {
   meta: MapResponse;
@@ -42,12 +42,14 @@ export function MapScreen({
 
   const [selectedCats, setSelectedCats] = useState<Set<number>>(new Set());
   const [hideFound, setHideFound] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
-  const [focus, setFocus] = useState<{ x: number; y: number; key: number } | null>(
-    null,
-  );
+  const [focus, setFocus] = useState<{
+    x: number;
+    y: number;
+    key: number;
+  } | null>(null);
   // Full catalog marker list (titles + descriptions): powers search and the
   // detail panel — the viewport endpoint intentionally omits descriptions.
   const [allMarkers, setAllMarkers] = useState<CatalogMarker[] | null>(null);
@@ -68,11 +70,11 @@ export function MapScreen({
 
   const markerById = useMemo(
     () => new Map((allMarkers ?? []).map((m) => [m.id, m])),
-    [allMarkers],
+    [allMarkers]
   );
   const categoryById = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
-    [categories],
+    [categories]
   );
   // categoryId -> resolved icon URL, for the map's symbol layer. Only
   // categories with a usable icon appear; the rest stay colored circles.
@@ -89,7 +91,7 @@ export function MapScreen({
     const q = search.trim().toLowerCase();
     if (!q || !allMarkers) return [];
     return allMarkers
-      .filter((m) => (m.title ?? '').toLowerCase().includes(q))
+      .filter((m) => (m.title ?? "").toLowerCase().includes(q))
       .slice(0, SEARCH_LIMIT);
   }, [search, allMarkers]);
 
@@ -115,23 +117,21 @@ export function MapScreen({
       setSelectedId(id);
       setFocus({ x: m.x, y: m.y, key: Date.now() });
     },
-    [markerById],
+    [markerById]
   );
   const resolveMarkerLabel = useCallback(
     (id: number) => markerById.get(id)?.title ?? null,
-    [markerById],
+    [markerById]
   );
 
   const catFilter = selectedCats.size > 0 ? [...selectedCats] : null;
-  const selected = selectedId === null ? null : (markerById.get(selectedId) ?? null);
-  const readyMaps = siblings.filter((s) => s.status === 'READY');
+  const selected =
+    selectedId === null ? null : markerById.get(selectedId) ?? null;
+  const readyMaps = siblings.filter((s) => s.status === "READY");
   const logo = resolveAssetUrl(game?.logoUrl ?? null);
 
   return (
-    <BrandTheme
-      game={game}
-      className="relative h-[100dvh] w-full overflow-hidden"
-    >
+    <BrandTheme game={game} className="relative h-dvh w-full overflow-hidden">
       <div className="absolute inset-0 z-0">
         <MapView
           meta={meta}
@@ -144,7 +144,7 @@ export function MapScreen({
         />
       </div>
 
-      <aside className="absolute inset-y-4 left-4 z-10 flex w-[280px] max-w-[calc(100vw-32px)] flex-col gap-3 overflow-y-auto pr-0.5">
+      <aside className="absolute inset-y-4 left-4 z-10 flex w-70 max-w-[calc(100vw-32px)] flex-col gap-3 overflow-y-auto pr-0.5">
         <Link
           href={`/${meta.gameSlug}`}
           className="px-0.5 py-1 [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] hover:no-underline"
@@ -183,7 +183,7 @@ export function MapScreen({
                   >
                     {s.name}
                   </Link>
-                ),
+                )
               )}
             </div>
           )}
@@ -194,7 +194,7 @@ export function MapScreen({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          {search.trim() !== '' && (
+          {search.trim() !== "" && (
             <div className="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto">
               {allMarkers === null ? (
                 <div className="text-sm text-fg-dim">Loading markers…</div>
@@ -237,7 +237,7 @@ export function MapScreen({
                 {progress.found.size} found
                 {allMarkers && allMarkers.length > 0
                   ? ` / ${allMarkers.length}`
-                  : ''}
+                  : ""}
               </div>
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
@@ -245,7 +245,9 @@ export function MapScreen({
                   checked={hideFound}
                   onChange={(e) => setHideFound(e.target.checked)}
                 />
-                <span className="min-w-0 flex-1 truncate">Hide found markers</span>
+                <span className="min-w-0 flex-1 truncate">
+                  Hide found markers
+                </span>
               </label>
             </>
           ) : (
@@ -294,7 +296,7 @@ export function MapScreen({
               categoryId={selected.categoryId}
               size={16}
             />
-            {categoryById.get(selected.categoryId)?.name ?? 'Marker'}
+            {categoryById.get(selected.categoryId)?.name ?? "Marker"}
           </div>
           <h2 className="m-0 pr-6 text-lg font-bold">
             {selected.title ?? `Marker #${selected.id}`}
@@ -327,7 +329,7 @@ export function MapScreen({
           onClick={() => setShowLogin(false)}
         >
           <div
-            className="relative w-[360px] max-w-[calc(100vw-32px)] rounded-card border border-edge bg-panel p-6 shadow-panel"
+            className="relative w-90 max-w-[calc(100vw-32px)] rounded-card border border-edge bg-panel p-6 shadow-panel"
             onClick={(e) => e.stopPropagation()}
           >
             <LoginForm onClose={() => setShowLogin(false)} />

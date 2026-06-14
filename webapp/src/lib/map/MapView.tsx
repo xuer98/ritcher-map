@@ -1,29 +1,29 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
+import { useEffect, useRef, useState } from "react";
+import maplibregl from "maplibre-gl";
 import type {
   GeoJSONSource,
   MapGeoJSONFeature,
   MapLayerMouseEvent,
   Map as MapLibreMap,
   StyleSpecification,
-} from 'maplibre-gl';
+} from "maplibre-gl";
 
-import { tileTemplateUrl } from '../api/client';
-import { TILE_SIZE } from '../config';
-import { categoryIconSpriteId } from '../icons';
-import type { MapResponse, ViewportResponse } from '../types';
-import { imageBounds, lngLatToPixel, pixelToLngLat } from './crs';
+import { tileTemplateUrl } from "../api/client";
+import { TILE_SIZE } from "../config";
+import { categoryIconSpriteId } from "../icons";
+import type { MapResponse, ViewportResponse } from "../types";
+import { imageBounds, lngLatToPixel, pixelToLngLat } from "./crs";
 import {
   buildLayers,
   categoryColor,
   MARKER_LAYER_ID,
   MARKER_SOURCE_ID,
   MARKER_SYMBOL_LAYER_ID,
-} from './layers';
-import { viewportToGeoJSON, type AnyProps } from './markers';
-import { useViewportMarkers } from './useViewportMarkers';
+} from "./layers";
+import { viewportToGeoJSON, type AnyProps } from "./markers";
+import { useViewportMarkers } from "./useViewportMarkers";
 
 export interface MapViewProps {
   meta: MapResponse;
@@ -57,7 +57,7 @@ const ICON_TARGET_PX = 28;
 const ICON_PIXEL_RATIO = 2;
 
 /** Root-relative path prefix of our built-in glyph library. */
-const BUILTIN_ICON_PREFIX = '/icons/categories/';
+const BUILTIN_ICON_PREFIX = "/icons/categories/";
 
 /**
  * Rasterize an icon URL to ImageData for `map.addImage`. Uses an <img> + canvas
@@ -72,18 +72,18 @@ const BUILTIN_ICON_PREFIX = '/icons/categories/';
  */
 function rasterizeIcon(
   url: string,
-  pinColor: string | null,
+  pinColor: string | null
 ): Promise<ImageData> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous'; // cross-origin icons need GET CORS, else taint
+    img.crossOrigin = "anonymous"; // cross-origin icons need GET CORS, else taint
     img.onload = () => {
       const size = ICON_TARGET_PX * ICON_PIXEL_RATIO;
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return reject(new Error('no 2d context'));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("no 2d context"));
 
       // Fraction of the sprite the source image occupies. A pinned glyph is
       // inset so it sits inside the disc with margin; a bare icon fills the box.
@@ -96,7 +96,7 @@ function rasterizeIcon(
         ctx.fillStyle = pinColor;
         ctx.fill();
         ctx.lineWidth = ICON_PIXEL_RATIO;
-        ctx.strokeStyle = 'rgba(0,0,0,0.30)';
+        ctx.strokeStyle = "rgba(0,0,0,0.30)";
         ctx.stroke();
       }
 
@@ -110,23 +110,23 @@ function rasterizeIcon(
       try {
         resolve(ctx.getImageData(0, 0, size, size));
       } catch (e) {
-        reject(e instanceof Error ? e : new Error('icon canvas tainted'));
+        reject(e instanceof Error ? e : new Error("icon canvas tainted"));
       }
     };
-    img.onerror = () => reject(new Error('icon load failed'));
+    img.onerror = () => reject(new Error("icon load failed"));
     img.src = url;
   });
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection<GeoJSON.Point, AnyProps> = {
-  type: 'FeatureCollection',
+  type: "FeatureCollection",
   features: [],
 };
 
 // An empty markers response so viewportToGeoJSON (which requires a
 // ViewportResponse) can be called uniformly before the first fetch resolves.
 const EMPTY_RESPONSE: ViewportResponse = {
-  kind: 'markers',
+  kind: "markers",
   markers: [],
   map_id: 0,
   zoom: 0,
@@ -136,14 +136,14 @@ const EMPTY_RESPONSE: ViewportResponse = {
 
 /** [[swLng,swLat],[neLng,neLat]] -> [minLng,minLat,maxLng,maxLat] for raster source bounds. */
 function flattenBounds(
-  b: [[number, number], [number, number]],
+  b: [[number, number], [number, number]]
 ): [number, number, number, number] {
   return [b[0][0], b[0][1], b[1][0], b[1][1]];
 }
 
 function isReady(meta: MapResponse): boolean {
   return (
-    meta.status === 'READY' &&
+    meta.status === "READY" &&
     meta.width !== null &&
     meta.height !== null &&
     meta.maxZoom !== null
@@ -158,33 +158,33 @@ function buildStyle(meta: MapResponse): StyleSpecification {
 
   return {
     version: 8,
-    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
     sources: {
-      'rm-raster': {
-        type: 'raster',
+      "rm-raster": {
+        type: "raster",
         tiles: [tileTemplateUrl(meta.prefix, meta.format)],
         tileSize: TILE_SIZE,
-        scheme: 'xyz',
+        scheme: "xyz",
         minzoom: meta.minZoom ?? 0,
         maxzoom: maxZoom,
         bounds,
       },
       [MARKER_SOURCE_ID]: {
-        type: 'geojson',
+        type: "geojson",
         data: EMPTY_FC,
       },
     },
     layers: [
       {
-        id: 'rm-background',
-        type: 'background',
-        paint: { 'background-color': '#0b0d10' },
+        id: "rm-background",
+        type: "background",
+        paint: { "background-color": "#0b0d10" },
       },
       {
-        id: 'rm-raster-layer',
-        type: 'raster',
-        source: 'rm-raster',
-        paint: { 'raster-fade-duration': 150 },
+        id: "rm-raster-layer",
+        type: "raster",
+        source: "rm-raster",
+        paint: { "raster-fade-duration": 150 },
       },
       ...buildLayers(),
     ],
@@ -240,17 +240,20 @@ export const MapView: React.FC<MapViewProps> = ({
       maxZoom,
       attributionControl: false,
     });
-    map.addControl(new maplibregl.NavigationControl({}), 'top-left');
+    map.addControl(new maplibregl.NavigationControl({}), "top-right");
     mapRef.current = map;
     setMapInstance(map);
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== "production") {
       // Dev-only debugging handle (e.g. __rmMap.getStyle() in the console).
-      const w = window as unknown as { __rmMap?: unknown; __rmMapErrors?: string[] };
+      const w = window as unknown as {
+        __rmMap?: unknown;
+        __rmMapErrors?: string[];
+      };
       w.__rmMap = map;
       w.__rmMapErrors = w.__rmMapErrors ?? [];
-      map.on('error', (e) => {
-        w.__rmMapErrors?.push(String(e.error?.message ?? e.error ?? 'unknown'));
-        console.error('[rm-map error]', e.error?.message);
+      map.on("error", (e) => {
+        w.__rmMapErrors?.push(String(e.error?.message ?? e.error ?? "unknown"));
+        console.error("[rm-map error]", e.error?.message);
       });
     }
 
@@ -271,7 +274,7 @@ export const MapView: React.FC<MapViewProps> = ({
     };
 
     const onEnter = (e: MapLayerMouseEvent): void => {
-      map.getCanvas().style.cursor = 'pointer';
+      map.getCanvas().style.cursor = "pointer";
       const feature = e.features?.[0] as MapGeoJSONFeature | undefined;
       const title = feature?.properties?.title as string | null | undefined;
       if (title) {
@@ -280,7 +283,7 @@ export const MapView: React.FC<MapViewProps> = ({
     };
 
     const onLeave = (): void => {
-      map.getCanvas().style.cursor = '';
+      map.getCanvas().style.cursor = "";
       popup.remove();
     };
 
@@ -302,18 +305,18 @@ export const MapView: React.FC<MapViewProps> = ({
     };
 
     for (const layer of MARKER_INTERACTIVE_LAYERS) {
-      map.on('click', layer, onClick);
-      map.on('mouseenter', layer, onEnter);
-      map.on('mouseleave', layer, onLeave);
+      map.on("click", layer, onClick);
+      map.on("mouseenter", layer, onEnter);
+      map.on("mouseleave", layer, onLeave);
     }
-    map.on('click', onBgClick);
+    map.on("click", onBgClick);
 
     return () => {
-      map.off('click', onBgClick);
+      map.off("click", onBgClick);
       for (const layer of MARKER_INTERACTIVE_LAYERS) {
-        map.off('click', layer, onClick);
-        map.off('mouseenter', layer, onEnter);
-        map.off('mouseleave', layer, onLeave);
+        map.off("click", layer, onClick);
+        map.off("mouseenter", layer, onEnter);
+        map.off("mouseleave", layer, onLeave);
       }
       popup.remove();
       mapRef.current = null;
@@ -328,7 +331,7 @@ export const MapView: React.FC<MapViewProps> = ({
     ready ? meta.id : null,
     meta.maxZoom,
     categories,
-    markersVersion,
+    markersVersion
   );
 
   // Sprites live on a specific map instance; drop the loaded-set when the map
@@ -350,7 +353,8 @@ export const MapView: React.FC<MapViewProps> = ({
     const loadAll = (): void => {
       for (const [catId, url] of categoryIcons) {
         const spriteId = categoryIconSpriteId(catId);
-        if (map.hasImage(spriteId) || loadingIcons.current.has(spriteId)) continue;
+        if (map.hasImage(spriteId) || loadingIcons.current.has(spriteId))
+          continue;
         loadingIcons.current.add(spriteId);
         // Rasterize via <img>+canvas rather than map.loadImage: that path uses
         // createImageBitmap, which can't decode SVG (our built-in icons). This
@@ -374,11 +378,11 @@ export const MapView: React.FC<MapViewProps> = ({
     };
 
     if (map.isStyleLoaded()) loadAll();
-    else map.once('load', loadAll);
+    else map.once("load", loadAll);
 
     return () => {
       cancelled = true;
-      map.off('load', loadAll);
+      map.off("load", loadAll);
     };
   }, [mapInstance, categoryIcons]);
 
@@ -394,17 +398,17 @@ export const MapView: React.FC<MapViewProps> = ({
         vp.response ?? EMPTY_RESPONSE,
         meta.maxZoom ?? 0,
         found,
-        loadedIconCats.current,
+        loadedIconCats.current
       );
       src.setData(
         hideFound
           ? {
               ...fc,
               features: fc.features.filter(
-                (f) => !(f.properties.kind === 'marker' && f.properties.found),
+                (f) => !(f.properties.kind === "marker" && f.properties.found)
               ),
             }
-          : fc,
+          : fc
       );
     };
 
@@ -414,13 +418,13 @@ export const MapView: React.FC<MapViewProps> = ({
       // `load` fires once and may already have fired by the time this effect
       // re-runs; `idle` re-fires whenever sources/tiles settle, so it reliably
       // catches a post-load run where isStyleLoaded() is transiently false.
-      map.once('load', apply);
-      map.once('idle', apply);
+      map.once("load", apply);
+      map.once("idle", apply);
     }
 
     return () => {
-      map.off('load', apply);
-      map.off('idle', apply);
+      map.off("load", apply);
+      map.off("idle", apply);
     };
   }, [vp.response, found, hideFound, meta.maxZoom, iconsVersion]);
 
@@ -441,12 +445,12 @@ export const MapView: React.FC<MapViewProps> = ({
           `.absolute`, so inset-0 wouldn't stretch the container. */}
       <div ref={containerRef} className="h-full w-full" />
       {!ready && (
-        <div className="absolute inset-0 z-[5] flex items-center justify-center bg-bg/70 text-fg-dim text-[15px] pointer-events-none">
+        <div className="absolute inset-0 z-5 flex items-center justify-center bg-bg/70 text-fg-dim text-[15px] pointer-events-none">
           Map not ready yet (status: {meta.status})
         </div>
       )}
       {vp.error && ready && (
-        <div className="absolute left-1/2 bottom-[18px] -translate-x-1/2 z-[6] bg-[rgba(40,12,12,0.92)] border border-danger/50 text-[#ffb4b4] text-[13px] px-3 py-2 rounded-lg">
+        <div className="absolute left-1/2 bottom-4.5 -translate-x-1/2 z-6 bg-[rgba(40,12,12,0.92)] border border-danger/50 text-[#ffb4b4] text-[13px] px-3 py-2 rounded-lg">
           Markers failed: {vp.error}
         </div>
       )}

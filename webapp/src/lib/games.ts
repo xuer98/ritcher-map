@@ -55,7 +55,9 @@ export function groupByGame(
       return {
         slug,
         title: branding?.title ?? gameTitle(slug),
-        maps: gameMaps.sort((a, b) => a.name.localeCompare(b.name)),
+        maps: gameMaps.sort(
+          (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
+        ),
         branding,
       };
     })

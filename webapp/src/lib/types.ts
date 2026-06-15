@@ -64,6 +64,8 @@ export interface MapResponse {
   maxZoom: number | null;
   /** Lowest zoom the viewer exposes; defaults to 0. */
   minZoom: number;
+  /** Display order within the game (ascending; ties broken by name). */
+  sortOrder: number;
   tileSize: number;
   format: string;
   createdAt: string;

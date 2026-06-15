@@ -37,10 +37,10 @@ export function createMap(
   );
 }
 
-/** Patch a map's editable fields (name and/or minZoom). */
+/** Patch a map's editable fields (name, minZoom and/or sortOrder). */
 export function updateMap(
   id: number,
-  patch: { name?: string; minZoom?: number },
+  patch: { name?: string; minZoom?: number; sortOrder?: number },
 ): Promise<MapResponse> {
   return apiSend<MapResponse>('PATCH', `/api/v1/maps/${id}`, patch, { auth: true });
 }

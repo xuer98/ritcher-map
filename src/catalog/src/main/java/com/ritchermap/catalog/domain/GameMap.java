@@ -62,6 +62,10 @@ public class GameMap {
     @Column(name = "min_zoom", nullable = false)
     private int minZoom = 0;
 
+    /** Display order within a game (ascending; ties broken by name). */
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder = 0;
+
     @Column(name = "tile_size", nullable = false)
     private int tileSize = 256;
 
@@ -105,6 +109,11 @@ public class GameMap {
         this.minZoom = minZoom;
     }
 
+    /** Set the display order within the game. */
+    public void setSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
     public void markUploaded(String sourceObjectKey) {
         this.sourceObjectKey = sourceObjectKey;
         this.status = MapStatus.UPLOADED;
@@ -122,6 +131,7 @@ public class GameMap {
     public Long getHeight() { return height; }
     public Integer getMaxZoom() { return maxZoom; }
     public int getMinZoom() { return minZoom; }
+    public int getSortOrder() { return sortOrder; }
     public int getTileSize() { return tileSize; }
     public String getFormat() { return format; }
     public Instant getCreatedAt() { return createdAt; }

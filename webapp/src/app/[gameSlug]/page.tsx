@@ -39,7 +39,9 @@ function badgeClass(m: MapResponse): string {
 export default async function GamePage({ params }: Props) {
   const { gameSlug } = await params;
   const [allMaps, game] = await Promise.all([fetchMaps(), fetchGame(gameSlug)]);
-  const maps = allMaps.filter((m) => m.gameSlug === gameSlug);
+  const maps = allMaps
+    .filter((m) => m.gameSlug === gameSlug)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   if (maps.length === 0) notFound();
 
   const title = game?.title ?? gameTitle(gameSlug);
@@ -78,7 +80,7 @@ export default async function GamePage({ params }: Props) {
               <img
                 src={logo}
                 alt={title}
-                className="max-h-20 w-auto object-contain drop-shadow-lg"
+                className="max-h-20 w-auto max-w-full object-contain object-left drop-shadow-lg"
               />
             ) : (
               <h1 className="text-3xl font-bold text-white">{title}</h1>

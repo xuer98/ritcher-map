@@ -34,10 +34,11 @@ public final class Dtos {
             @NotBlank @Size(max = 200) String name
     ) {}
 
-    /** Editor edit: both fields optional — only the present ones are applied. */
+    /** Editor edit: all fields optional — only the present ones are applied. */
     public record UpdateMapRequest(
             @Size(max = 200) String name,
-            @PositiveOrZero Integer minZoom
+            @PositiveOrZero Integer minZoom,
+            @PositiveOrZero Integer sortOrder
     ) {}
 
     public record RequestTilingRequest(
@@ -71,6 +72,7 @@ public final class Dtos {
             Long height,
             Integer maxZoom,
             int minZoom,
+            int sortOrder,
             int tileSize,
             String format,
             Instant createdAt,
@@ -80,7 +82,8 @@ public final class Dtos {
             return new MapResponse(
                     m.getId(), m.getGameSlug(), m.getMapSlug(), m.getName(), m.getPrefix(),
                     m.getStatus(), m.getWidth(), m.getHeight(), m.getMaxZoom(),
-                    m.getMinZoom(), m.getTileSize(), m.getFormat(), m.getCreatedAt(), m.getUpdatedAt()
+                    m.getMinZoom(), m.getSortOrder(), m.getTileSize(), m.getFormat(),
+                    m.getCreatedAt(), m.getUpdatedAt()
             );
         }
     }

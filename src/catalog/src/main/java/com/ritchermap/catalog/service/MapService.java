@@ -10,6 +10,7 @@ import com.ritchermap.proto.tiling.v1.TilingRequested;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,7 +57,10 @@ public class MapService {
 
     @Transactional(readOnly = true)
     public List<GameMap> list() {
-        return maps.findAll();
+        return maps.findAll(
+                Sort.by(Sort.Order.asc("gameSlug"),
+                        Sort.Order.asc("sortOrder"),
+                        Sort.Order.asc("name")));
     }
 
     @Transactional(readOnly = true)
@@ -68,13 +72,16 @@ public class MapService {
      *  clamped to [0, maxZoom] (when the map is tiled) so it can't exceed the
      *  top level. */
     @Transactional
-    public GameMap update(long id, String name, Integer minZoom) {
+    public GameMap update(long id, String name, Integer minZoom, Integer sortOrder) {
         GameMap m = get(id);
         if (name != null && !name.isBlank()) {
             m.rename(name.strip());
         }
         if (minZoom != null) {
             m.setMinZoom(clampMinZoom(minZoom, m.getMaxZoom()));
+        }
+        if (sortOrder != null) {
+            m.setSortOrder(Math.max(0, sortOrder));
         }
         springEvents.publishEvent(mapChanged(id, CatalogChanged.Action.ACTION_UPDATED));
         return m;

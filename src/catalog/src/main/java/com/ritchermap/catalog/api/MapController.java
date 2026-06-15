@@ -37,7 +37,7 @@ public class MapController {
 
     @PatchMapping("/{id}")
     public Dtos.MapResponse update(@PathVariable long id, @Valid @RequestBody Dtos.UpdateMapRequest req) {
-        return Dtos.MapResponse.from(maps.update(id, req.name(), req.minZoom()));
+        return Dtos.MapResponse.from(maps.update(id, req.name(), req.minZoom(), req.sortOrder()));
     }
 
     @DeleteMapping("/{id}")

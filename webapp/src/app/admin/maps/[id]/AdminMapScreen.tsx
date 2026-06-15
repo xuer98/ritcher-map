@@ -89,10 +89,12 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
   // --- rename / min zoom / delete ----------------------------------------------
   const [nameDraft, setNameDraft] = useState('');
   const [minZoomDraft, setMinZoomDraft] = useState('0');
+  const [sortOrderDraft, setSortOrderDraft] = useState('0');
   useEffect(() => {
     if (meta) {
       setNameDraft(meta.name);
       setMinZoomDraft(String(meta.minZoom));
+      setSortOrderDraft(String(meta.sortOrder ?? 0));
     }
   }, [meta]);
 
@@ -116,6 +118,20 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
       setMeta(await updateMap(meta.id, { minZoom: z }));
     } catch (e) {
       setError(errMsg(e, 'min zoom update failed'));
+    }
+  };
+
+  const saveSortOrder = async () => {
+    if (!meta) return;
+    const n = Number(sortOrderDraft);
+    if (!Number.isInteger(n) || n < 0) {
+      setError('Order must be a non-negative integer.');
+      return;
+    }
+    try {
+      setMeta(await updateMap(meta.id, { sortOrder: n }));
+    } catch (e) {
+      setError(errMsg(e, 'order update failed'));
     }
   };
 
@@ -527,6 +543,26 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
               <button type="button" className="btn" onClick={saveMinZoom}>
                 Set
               </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-[13px] text-fg-dim" htmlFor="rm-sort-order">
+                Order
+              </label>
+              <input
+                id="rm-sort-order"
+                className="input"
+                type="number"
+                min={0}
+                value={sortOrderDraft}
+                onChange={(e) => setSortOrderDraft(e.target.value)}
+                style={{ maxWidth: 80 }}
+              />
+              <button type="button" className="btn" onClick={saveSortOrder}>
+                Set
+              </button>
+              <span className="text-[13px] text-fg-dim">
+                position within {meta.gameSlug} (low first)
+              </span>
             </div>
             <div className="text-[13px] text-fg-dim">
               {meta.prefix} ·{' '}

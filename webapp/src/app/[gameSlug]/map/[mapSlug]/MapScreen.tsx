@@ -127,7 +127,9 @@ export function MapScreen({
   const catFilter = selectedCats.size > 0 ? [...selectedCats] : null;
   const selected =
     selectedId === null ? null : markerById.get(selectedId) ?? null;
-  const readyMaps = siblings.filter((s) => s.status === "READY");
+  const readyMaps = siblings
+    .filter((s) => s.status === "READY")
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const logo = resolveAssetUrl(game?.logoUrl ?? null);
 
   return (
@@ -154,7 +156,7 @@ export function MapScreen({
             <img
               src={logo}
               alt={gameTitle}
-              className="max-h-9 w-auto object-contain"
+              className="max-h-9 w-auto max-w-full object-contain object-left"
             />
           ) : (
             <span className="text-base font-bold tracking-[0.2px] text-fg">

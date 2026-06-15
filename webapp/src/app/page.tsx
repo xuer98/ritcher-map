@@ -64,7 +64,7 @@ export default async function HomePage() {
                       <img
                         src={logo}
                         alt={g.title}
-                        className="max-h-12 w-auto self-start object-contain drop-shadow-lg"
+                        className="max-h-12 w-auto max-w-full self-start object-contain object-left drop-shadow-lg"
                       />
                     ) : (
                       <span className="text-base font-bold leading-tight text-white">

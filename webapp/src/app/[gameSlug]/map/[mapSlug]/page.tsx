@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { gameTitle } from '@/lib/games';
 import { resolveAssetUrl } from '@/lib/icons';
+import { breadcrumbJsonLd, JsonLd } from '@/lib/seo/JsonLd';
 import { fetchCategories, fetchGame, fetchMaps } from '@/lib/server';
 import { MapScreen } from './MapScreen';
 
@@ -16,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const game = gameRow?.title ?? gameTitle(gameSlug);
   const title = map ? `${map.name} — ${game} Interactive Map` : `${game} Map`;
   const description = map
-    ? `Interactive ${map.name} map for ${game}: every marker, with progress tracking.`
+    ? `Free interactive ${map.name} map for ${game} — pinpoint every collectible, boss and secret, and track what you've found.`
     : undefined;
   const url = `/${gameSlug}/map/${mapSlug}`;
   const image = resolveAssetUrl(gameRow?.thumbnailUrl ?? null);
@@ -46,14 +47,24 @@ export default async function MapPage({ params }: Props) {
     fetchGame(gameSlug),
   ]);
   const siblings = maps.filter((m) => m.gameSlug === gameSlug);
+  const title = game?.title ?? gameTitle(gameSlug);
 
   return (
-    <MapScreen
-      meta={meta}
-      categories={categories}
-      siblings={siblings}
-      gameTitle={game?.title ?? gameTitle(gameSlug)}
-      game={game}
-    />
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: 'All games', path: '/' },
+          { name: title, path: `/${gameSlug}` },
+          { name: meta.name, path: `/${gameSlug}/map/${mapSlug}` },
+        ])}
+      />
+      <MapScreen
+        meta={meta}
+        categories={categories}
+        siblings={siblings}
+        gameTitle={title}
+        game={game}
+      />
+    </>
   );
 }

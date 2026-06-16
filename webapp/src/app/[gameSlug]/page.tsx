@@ -5,6 +5,11 @@ import { SiteHeader } from '@/components/SiteHeader';
 import { BrandTheme } from '@/lib/branding/BrandTheme';
 import { gameTitle } from '@/lib/games';
 import { resolveAssetUrl } from '@/lib/icons';
+import {
+  breadcrumbJsonLd,
+  JsonLd,
+  videoGameJsonLd,
+} from '@/lib/seo/JsonLd';
 import { fetchGame, fetchMaps } from '@/lib/server';
 import type { MapResponse } from '@/lib/types';
 
@@ -16,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { gameSlug } = await params;
   const game = await fetchGame(gameSlug);
   const title = game?.title ?? gameTitle(gameSlug);
-  const description = `All ${title} maps — locations, collectibles and progress tracking.`;
+  const description = `Free interactive ${title} maps — find every location, collectible and boss, and check off your progress as you go.`;
   const url = `/${gameSlug}`;
   const image = resolveAssetUrl(game?.thumbnailUrl ?? null);
   return {
@@ -50,6 +55,20 @@ export default async function GamePage({ params }: Props) {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
+      <JsonLd
+        data={[
+          breadcrumbJsonLd([
+            { name: 'All games', path: '/' },
+            { name: title, path: `/${gameSlug}` },
+          ]),
+          videoGameJsonLd({
+            title,
+            gameSlug,
+            description: `Free interactive ${title} maps — find every location, collectible and boss, and check off your progress as you go.`,
+            image: thumb,
+          }),
+        ]}
+      />
       <SiteHeader />
       <BrandTheme game={game} className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
         <nav className="flex items-center gap-1.5 text-sm text-fg-dim">

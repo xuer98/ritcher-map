@@ -17,6 +17,14 @@ export const SITE_URL: string = (
   process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 ).replace(/\/+$/, '');
 
+/** Brand name used in metadata, JSON-LD, and Open Graph. */
+export const SITE_NAME = 'RitcherMap';
+
+/** Default site description (the search-result snippet for the home page). */
+export const SITE_DESCRIPTION =
+  'Free interactive game maps — find every collectible, boss and location, ' +
+  'and track your progress as you explore.';
+
 /**
  * Public base URL for uploaded assets (category icons) held in object storage,
  * e.g. 'https://assets.example.com' or an r2.dev bucket URL. When unset, only

@@ -13,16 +13,25 @@ import type {
 import { tileTemplateUrl } from "../api/client";
 import { TILE_SIZE } from "../config";
 import { categoryIconSpriteId } from "../icons";
-import type { MapResponse, ViewportResponse } from "../types";
+import type { MapResponse, RegionResponse, ViewportResponse } from "../types";
 import { imageBounds, lngLatToPixel, pixelToLngLat } from "./crs";
 import {
   buildLayers,
   categoryColor,
+  CLUSTER_LAYER_ID,
   MARKER_LAYER_ID,
   MARKER_SOURCE_ID,
   MARKER_SYMBOL_LAYER_ID,
 } from "./layers";
 import { viewportToGeoJSON, type AnyProps } from "./markers";
+import {
+  buildRegionLayers,
+  REGION_FILL_LAYER_ID,
+  REGION_LAYER_IDS,
+  REGION_SOURCE_ID,
+  regionBounds,
+  regionsToGeoJSON,
+} from "./regions";
 import { useViewportMarkers } from "./useViewportMarkers";
 
 export interface MapViewProps {
@@ -46,6 +55,10 @@ export interface MapViewProps {
    * icon image once it loads; everything else stays a colored circle.
    */
   categoryIcons?: ReadonlyMap<number, string>;
+  /** Named polygonal areas drawn beneath the markers; clicking one fits its bounds. */
+  regions?: RegionResponse[];
+  /** Region to fit the camera to (e.g. from a sidebar list); bump `key` to retrigger. */
+  regionFocus?: { id: number; key: number } | null;
 }
 
 /** Both marker layers are clickable / hoverable. */
@@ -201,6 +214,8 @@ export const MapView: React.FC<MapViewProps> = ({
   onMapClick,
   markersVersion = 0,
   categoryIcons,
+  regions,
+  regionFocus = null,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -219,6 +234,9 @@ export const MapView: React.FC<MapViewProps> = ({
   onClickRef.current = onMarkerClick;
   const onMapClickRef = useRef(onMapClick);
   onMapClickRef.current = onMapClick;
+  // Latest regions for the once-bound region click handler to read.
+  const regionsRef = useRef<RegionResponse[]>(regions ?? []);
+  regionsRef.current = regions ?? [];
 
   const ready = isReady(meta);
 
@@ -295,7 +313,8 @@ export const MapView: React.FC<MapViewProps> = ({
       // queryRenderedFeatures THROWS for a layer the style hasn't loaded yet,
       // and clicks can land before 'load' — query only layers that exist and
       // treat the rest as "no marker hit".
-      const present = MARKER_INTERACTIVE_LAYERS.filter((l) => map.getLayer(l));
+      const guard = [...MARKER_INTERACTIVE_LAYERS, REGION_FILL_LAYER_ID];
+      const present = guard.filter((l) => map.getLayer(l));
       const hits = present.length
         ? map.queryRenderedFeatures(e.point, { layers: present })
         : [];
@@ -304,15 +323,41 @@ export const MapView: React.FC<MapViewProps> = ({
       onMapClickRef.current({ x: px.x, y: px.y });
     };
 
+    // Clicking a region fits the camera to its bounds. Read the latest regions
+    // via ref since this handler is bound once for the map's lifetime.
+    const onRegionClick = (e: MapLayerMouseEvent): void => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const id =
+        f.id !== undefined && f.id !== null
+          ? Number(f.id)
+          : Number((f.properties as { id?: number }).id);
+      const region = regionsRef.current.find((r) => r.id === id);
+      if (!region) return;
+      map.fitBounds(regionBounds(region, maxZoom), { padding: 48, maxZoom });
+    };
+    const onRegionEnter = (): void => {
+      map.getCanvas().style.cursor = "pointer";
+    };
+    const onRegionLeave = (): void => {
+      map.getCanvas().style.cursor = "";
+    };
+
     for (const layer of MARKER_INTERACTIVE_LAYERS) {
       map.on("click", layer, onClick);
       map.on("mouseenter", layer, onEnter);
       map.on("mouseleave", layer, onLeave);
     }
+    map.on("click", REGION_FILL_LAYER_ID, onRegionClick);
+    map.on("mouseenter", REGION_FILL_LAYER_ID, onRegionEnter);
+    map.on("mouseleave", REGION_FILL_LAYER_ID, onRegionLeave);
     map.on("click", onBgClick);
 
     return () => {
       map.off("click", onBgClick);
+      map.off("click", REGION_FILL_LAYER_ID, onRegionClick);
+      map.off("mouseenter", REGION_FILL_LAYER_ID, onRegionEnter);
+      map.off("mouseleave", REGION_FILL_LAYER_ID, onRegionLeave);
       for (const layer of MARKER_INTERACTIVE_LAYERS) {
         map.off("click", layer, onClick);
         map.off("mouseenter", layer, onEnter);
@@ -437,6 +482,46 @@ export const MapView: React.FC<MapViewProps> = ({
       zoom: Math.max(mapInstance.getZoom(), meta.maxZoom - 1),
     });
   }, [mapInstance, focus, meta.maxZoom]);
+
+  // Region overlays: (re)build the source + layers with the current data. We
+  // create the geojson source WITH its data (rather than an empty source then
+  // setData) because the latter doesn't reliably render in this pixel CRS.
+  // Regions are static + low-cardinality, so a full rebuild on change is cheap.
+  useEffect(() => {
+    const map = mapInstance;
+    if (!map) return;
+
+    const apply = (): void => {
+      for (const id of REGION_LAYER_IDS) {
+        if (map.getLayer(id)) map.removeLayer(id);
+      }
+      if (map.getSource(REGION_SOURCE_ID)) map.removeSource(REGION_SOURCE_ID);
+      map.addSource(REGION_SOURCE_ID, {
+        type: "geojson",
+        data: regionsToGeoJSON(regions ?? [], meta.maxZoom ?? 0),
+      });
+      // Insert beneath the cluster/marker layers so markers stay on top.
+      const before = map.getLayer(CLUSTER_LAYER_ID) ? CLUSTER_LAYER_ID : undefined;
+      for (const layer of buildRegionLayers()) map.addLayer(layer, before);
+    };
+
+    if (map.isStyleLoaded()) apply();
+    else map.once("load", apply);
+    return () => {
+      map.off("load", apply);
+    };
+  }, [mapInstance, regions, meta.maxZoom]);
+
+  // Fit the camera to a region requested externally (e.g. the sidebar list).
+  useEffect(() => {
+    if (!mapInstance || !regionFocus) return;
+    const region = (regions ?? []).find((r) => r.id === regionFocus.id);
+    if (!region) return;
+    mapInstance.fitBounds(regionBounds(region, meta.maxZoom ?? 0), {
+      padding: 48,
+      maxZoom: meta.maxZoom ?? undefined,
+    });
+  }, [mapInstance, regionFocus, regions, meta.maxZoom]);
 
   return (
     <div className="relative h-full w-full">

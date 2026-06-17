@@ -8,11 +8,17 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { LoginForm } from "@/lib/auth/LoginForm";
 import { BrandTheme } from "@/lib/branding/BrandTheme";
 import { resolveAssetUrl, resolveIconUrl } from "@/lib/icons";
+import { regionColor } from "@/lib/map/regions";
 import { MarkerBody } from "@/lib/markdown/MarkerBody";
 import { CategoryIcon } from "@/lib/panels/CategoryIcon";
 import { CategoryPanel } from "@/lib/panels/CategoryPanel";
 import { useProgressSync } from "@/lib/progress/useProgressSync";
-import type { CategoryResponse, GameResponse, MapResponse } from "@/lib/types";
+import type {
+  CategoryResponse,
+  GameResponse,
+  MapResponse,
+  RegionResponse,
+} from "@/lib/types";
 
 // MapLibre needs the DOM/WebGL — the single ssr:false boundary of the app.
 const MapView = dynamic(() => import("@/lib/map/MapView"), { ssr: false });
@@ -22,6 +28,8 @@ export interface MapScreenProps {
   categories: CategoryResponse[];
   /** All maps of the same game, for the switcher (includes `meta` itself). */
   siblings: MapResponse[];
+  /** Named polygonal areas of this map (rendered + clickable to zoom). */
+  regions: RegionResponse[];
   gameTitle: string;
   /** Per-game branding (colors/font/logo); null when the game has no row. */
   game: GameResponse | null;
@@ -33,6 +41,7 @@ export function MapScreen({
   meta,
   categories,
   siblings,
+  regions,
   gameTitle,
   game,
 }: MapScreenProps) {
@@ -48,6 +57,11 @@ export function MapScreen({
   const [focus, setFocus] = useState<{
     x: number;
     y: number;
+    key: number;
+  } | null>(null);
+  // Region to fit the camera to (bump key to retrigger the same region).
+  const [regionFocus, setRegionFocus] = useState<{
+    id: number;
     key: number;
   } | null>(null);
   // Full catalog marker list (titles + descriptions): powers search and the
@@ -143,6 +157,8 @@ export function MapScreen({
           onMarkerClick={setSelectedId}
           focus={focus}
           categoryIcons={categoryIcons}
+          regions={regions}
+          regionFocus={regionFocus}
         />
       </div>
 
@@ -230,6 +246,31 @@ export function MapScreen({
           onToggle={toggleCat}
           onToggleAll={() => setSelectedCats(new Set())}
         />
+
+        {regions.length > 0 && (
+          <div className="panel">
+            <div className="panel-title">Regions</div>
+            <div className="flex max-h-[24vh] flex-col gap-0.5 overflow-y-auto">
+              {regions.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-white/10"
+                  onClick={() =>
+                    setRegionFocus((f) => ({ id: r.id, key: (f?.key ?? 0) + 1 }))
+                  }
+                >
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 flex-none rounded-[2px]"
+                    style={{ background: regionColor(r.id) }}
+                  />
+                  <span className="truncate">{r.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="panel">
           <div className="panel-title">Progress</div>

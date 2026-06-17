@@ -71,6 +71,7 @@ func TestCatalogReadsPublicWritesAdmin(t *testing.T) {
 		{"anon read map", http.MethodGet, "/api/v1/maps/1", "", http.StatusOK},
 		{"anon read categories", http.MethodGet, "/api/v1/categories", "", http.StatusOK},
 		{"anon read markers", http.MethodGet, "/api/v1/markers", "", http.StatusOK},
+		{"anon read regions", http.MethodGet, "/api/v1/maps/1/regions", "", http.StatusOK},
 		// Anonymous writes are rejected at the edge.
 		{"anon create game", http.MethodPost, "/api/v1/games", "", http.StatusUnauthorized},
 		{"anon update game", http.MethodPut, "/api/v1/games/elden-ring", "", http.StatusUnauthorized},
@@ -83,6 +84,8 @@ func TestCatalogReadsPublicWritesAdmin(t *testing.T) {
 		{"user create map", http.MethodPost, "/api/v1/maps", userToken, http.StatusForbidden},
 		{"user tiling", http.MethodPost, "/api/v1/maps/1/tiling", userToken, http.StatusForbidden},
 		{"user delete marker", http.MethodDelete, "/api/v1/markers/5", userToken, http.StatusForbidden},
+		{"anon create region", http.MethodPost, "/api/v1/maps/1/regions", "", http.StatusUnauthorized},
+		{"user delete region", http.MethodDelete, "/api/v1/regions/3", userToken, http.StatusForbidden},
 		// Admin writes reach the backend.
 		{"admin create game", http.MethodPost, "/api/v1/games", adminToken, http.StatusOK},
 		{"admin update game", http.MethodPut, "/api/v1/games/elden-ring", adminToken, http.StatusOK},
@@ -90,6 +93,7 @@ func TestCatalogReadsPublicWritesAdmin(t *testing.T) {
 		{"admin create map", http.MethodPost, "/api/v1/maps", adminToken, http.StatusOK},
 		{"admin tiling", http.MethodPost, "/api/v1/maps/1/tiling", adminToken, http.StatusOK},
 		{"admin delete category", http.MethodDelete, "/api/v1/categories/2", adminToken, http.StatusOK},
+		{"admin create region", http.MethodPost, "/api/v1/maps/1/regions", adminToken, http.StatusOK},
 		// Progress stays fully authed, even for GET.
 		{"anon progress", http.MethodGet, "/api/v1/progress/1", "", http.StatusUnauthorized},
 	}

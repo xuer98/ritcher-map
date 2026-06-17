@@ -3,7 +3,12 @@ import { notFound } from 'next/navigation';
 import { gameTitle } from '@/lib/games';
 import { resolveAssetUrl } from '@/lib/icons';
 import { breadcrumbJsonLd, JsonLd } from '@/lib/seo/JsonLd';
-import { fetchCategories, fetchGame, fetchMaps } from '@/lib/server';
+import {
+  fetchCategories,
+  fetchGame,
+  fetchMaps,
+  fetchRegions,
+} from '@/lib/server';
 import { MapScreen } from './MapScreen';
 
 interface Props {
@@ -42,8 +47,9 @@ export default async function MapPage({ params }: Props) {
   );
   if (!meta) notFound();
 
-  const [categories, game] = await Promise.all([
+  const [categories, regions, game] = await Promise.all([
     fetchCategories(meta.id),
+    fetchRegions(meta.id),
     fetchGame(gameSlug),
   ]);
   const siblings = maps.filter((m) => m.gameSlug === gameSlug);
@@ -62,6 +68,7 @@ export default async function MapPage({ params }: Props) {
         meta={meta}
         categories={categories}
         siblings={siblings}
+        regions={regions}
         gameTitle={title}
         game={game}
       />

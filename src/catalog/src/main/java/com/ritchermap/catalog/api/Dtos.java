@@ -5,6 +5,7 @@ import com.ritchermap.catalog.domain.Game;
 import com.ritchermap.catalog.domain.GameMap;
 import com.ritchermap.catalog.domain.Marker;
 import com.ritchermap.catalog.domain.MapStatus;
+import com.ritchermap.catalog.domain.Region;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -192,4 +193,51 @@ public final class Dtos {
     public record BulkImportRequest(@NotNull List<BulkImportRow> markers) {}
 
     public record BulkImportResponse(int inserted) {}
+
+    // ---------- Region ----------
+
+    /** Exterior ring as `[[x, y], ...]` (pixel space); auto-closed server-side. */
+    public record CreateRegionRequest(
+            @NotBlank @Size(max = 200) String name,
+            int sortOrder,
+            @NotNull List<List<Double>> polygon
+    ) {}
+
+    /** Editor edit: all fields optional — only the present ones are applied. */
+    public record UpdateRegionRequest(
+            @Size(max = 200) String name,
+            @PositiveOrZero Integer sortOrder,
+            List<List<Double>> polygon
+    ) {}
+
+    public record RegionResponse(
+            long id,
+            long mapId,
+            String name,
+            int sortOrder,
+            List<double[]> polygon,
+            double[] bbox
+    ) {
+        public static RegionResponse from(Region r) {
+            org.locationtech.jts.geom.Polygon g = r.getGeom();
+            List<double[]> ring = new java.util.ArrayList<>();
+            for (org.locationtech.jts.geom.Coordinate c : g.getExteriorRing().getCoordinates()) {
+                ring.add(new double[] { c.x, c.y });
+            }
+            var env = g.getEnvelopeInternal();
+            return new RegionResponse(
+                    r.getId(), r.getMapId(), r.getName(), r.getSortOrder(),
+                    ring,
+                    new double[] { env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY() }
+            );
+        }
+    }
+
+    public record RegionBulkRow(
+            @NotBlank @Size(max = 200) String name,
+            int sortOrder,
+            @NotNull List<List<Double>> polygon
+    ) {}
+
+    public record RegionBulkImportRequest(@NotNull List<RegionBulkRow> regions) {}
 }

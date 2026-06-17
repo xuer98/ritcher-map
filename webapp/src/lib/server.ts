@@ -7,7 +7,12 @@
 // `next build` on CI with no backend around.
 
 import { GATEWAY_URL } from './config';
-import type { CategoryResponse, GameResponse, MapResponse } from './types';
+import type {
+  CategoryResponse,
+  GameResponse,
+  MapResponse,
+  RegionResponse,
+} from './types';
 
 async function gatewayJson<T>(path: string, revalidate = 60): Promise<T | null> {
   try {
@@ -37,6 +42,14 @@ export async function fetchCategories(
   return (
     (await gatewayJson<CategoryResponse[]>(`/api/v1/maps/${mapId}/categories`)) ??
     []
+  );
+}
+
+export async function fetchRegions(
+  mapId: number,
+): Promise<RegionResponse[]> {
+  return (
+    (await gatewayJson<RegionResponse[]>(`/api/v1/maps/${mapId}/regions`)) ?? []
   );
 }
 

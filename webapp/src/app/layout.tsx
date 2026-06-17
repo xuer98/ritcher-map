@@ -1,12 +1,8 @@
 import type { Metadata } from 'next';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './globals.css';
-import { SITE_URL } from '@/lib/config';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config';
 import { AuthProvider } from '@/lib/auth/AuthContext';
-
-const SITE_NAME = 'RitcherMap';
-const SITE_DESCRIPTION =
-  'Interactive game maps: track collectibles, locations and progress across your favorite games.';
 
 export const metadata: Metadata = {
   // Absolute base for canonical + Open Graph URLs. Without this, social/search

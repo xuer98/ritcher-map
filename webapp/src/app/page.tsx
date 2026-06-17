@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { SiteHeader } from '@/components/SiteHeader';
 import { groupByGame } from '@/lib/games';
 import { resolveAssetUrl } from '@/lib/icons';
+import { JsonLd, websiteJsonLd } from '@/lib/seo/JsonLd';
 import { fetchGames, fetchMaps } from '@/lib/server';
 
 export default async function HomePage() {
@@ -11,6 +12,7 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
+      <JsonLd data={websiteJsonLd()} />
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
         <h1 className="text-3xl font-bold tracking-tight">

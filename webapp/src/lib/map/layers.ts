@@ -3,7 +3,7 @@ import type { LayerSpecification } from 'maplibre-gl';
 /** Id of the GeoJSON source holding markers + clusters. */
 export const MARKER_SOURCE_ID = 'rm-markers';
 
-const CLUSTER_LAYER_ID = 'rm-clusters';
+export const CLUSTER_LAYER_ID = 'rm-clusters';
 const CLUSTER_COUNT_LAYER_ID = 'rm-cluster-count';
 /** Iconless markers (circle) and icon markers (symbol). Both are clickable. */
 export const MARKER_LAYER_ID = 'rm-marker-points';

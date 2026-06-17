@@ -91,6 +91,7 @@ func New(d Deps) (http.Handler, error) {
 		"/api/v1/maps", "/api/v1/maps/",
 		"/api/v1/categories", "/api/v1/categories/",
 		"/api/v1/markers", "/api/v1/markers/",
+		"/api/v1/regions", "/api/v1/regions/",
 	} {
 		mux.Handle("GET "+p, catalogProxy)
 		mux.Handle(p, requireAuth(auth.RequireAdmin(catalogProxy)))

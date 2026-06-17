@@ -97,6 +97,18 @@ export interface CategoryResponse {
   sortOrder: number;
 }
 
+/** A named polygonal area of a map (catalog /api/v1/maps/{id}/regions). */
+export interface RegionResponse {
+  id: number;
+  mapId: number;
+  name: string;
+  sortOrder: number;
+  /** Exterior ring as [x, y] pixel-space pairs (auto-closed). */
+  polygon: [number, number][];
+  /** [minX, minY, maxX, maxY] in pixel space — used to fit the camera. */
+  bbox: Bbox;
+}
+
 // ----------------------------------------------------------------------------
 // progress: gateway-local, STRING ids on the wire (converted in src/api/progress.ts)
 // ----------------------------------------------------------------------------

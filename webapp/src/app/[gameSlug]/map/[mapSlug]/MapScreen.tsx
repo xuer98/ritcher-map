@@ -117,6 +117,17 @@ export function MapScreen({
       return next;
     });
 
+  // Add or remove a batch of category ids at once (a group's master toggle).
+  const toggleManyCats = (ids: number[], select: boolean) =>
+    setSelectedCats((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (select) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+
   const jumpTo = (m: CatalogMarker) => {
     setSelectedId(m.id);
     setFocus({ x: m.x, y: m.y, key: Date.now() });
@@ -244,6 +255,7 @@ export function MapScreen({
           categories={categories}
           selected={selectedCats}
           onToggle={toggleCat}
+          onToggleMany={toggleManyCats}
           onToggleAll={() => setSelectedCats(new Set())}
         />
 

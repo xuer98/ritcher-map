@@ -7,14 +7,17 @@ import {
   bulkImportMarkers,
   createCategory,
   createMarker,
+  createRegion,
   deleteCategory,
   deleteMap,
   deleteMarker,
+  deleteRegion,
   presignUpload,
   requestTiling,
   updateMap,
   updateCategory,
   updateMarker,
+  updateRegion,
   uploadToPresignedUrl,
   type MarkerInput,
 } from '@/lib/api/admin';
@@ -22,13 +25,19 @@ import {
   getCategories,
   getMapMeta,
   getMarkers,
+  getRegions,
   type CatalogMarker,
 } from '@/lib/api/maps';
 import { resolveIconUrl } from '@/lib/icons';
+import { regionColor } from '@/lib/map/regions';
 import { MarkdownEditor } from '@/lib/markdown/MarkdownEditor';
 import { CategoryIcon } from '@/lib/panels/CategoryIcon';
 import { IconPicker } from '@/lib/panels/IconPicker';
-import type { CategoryResponse, MapResponse } from '@/lib/types';
+import type {
+  CategoryResponse,
+  MapResponse,
+  RegionResponse,
+} from '@/lib/types';
 
 const MapView = dynamic(() => import('@/lib/map/MapView'), { ssr: false });
 
@@ -48,6 +57,7 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
   const [meta, setMeta] = useState<MapResponse | null>(null);
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [markers, setMarkers] = useState<CatalogMarker[]>([]);
+  const [regions, setRegions] = useState<RegionResponse[]>([]);
   const [markersVersion, setMarkersVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +68,10 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
 
   const reloadCategories = useCallback(() => {
     getCategories(mapId).then(setCategories);
+  }, [mapId]);
+
+  const reloadRegions = useCallback(() => {
+    getRegions(mapId).then(setRegions).catch(() => setRegions([]));
   }, [mapId]);
 
   useEffect(() => {
@@ -71,10 +85,11 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
       });
     reloadCategories();
     reloadMarkers();
+    reloadRegions();
     return () => {
       cancelled = true;
     };
-  }, [mapId, reloadCategories, reloadMarkers]);
+  }, [mapId, reloadCategories, reloadMarkers, reloadRegions]);
 
   // Poll while the tiler is working so the status flips without a refresh.
   const status = meta?.status;
@@ -283,6 +298,18 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
     }
     return m;
   }, [categories]);
+  // How many children each category has — a root with children is a "group".
+  const childCountById = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const c of categories) {
+      if (c.parentId !== null) m.set(c.parentId, (m.get(c.parentId) ?? 0) + 1);
+    }
+    return m;
+  }, [categories]);
+  // A group (category with children) can't itself be nested — keep one level.
+  const editingHasChildren = catEditing
+    ? (childCountById.get(catEditing.id) ?? 0) > 0
+    : false;
 
   const selectNew = useCallback(
     (p: { x: number; y: number }) => {
@@ -383,6 +410,86 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
     }
   };
 
+  // --- regions (polygon drawing) --------------------------------------------
+  const [regionDraw, setRegionDraw] = useState(false);
+  const [draftPts, setDraftPts] = useState<[number, number][]>([]);
+  const [regionEditing, setRegionEditing] = useState<RegionResponse | null>(
+    null,
+  );
+  const [rName, setRName] = useState('');
+  const [rSort, setRSort] = useState('0');
+
+  const regionResetDraw = () => {
+    setRegionDraw(false);
+    setDraftPts([]);
+    setRegionEditing(null);
+    setRName('');
+    setRSort('0');
+  };
+
+  const regionStartNew = () => {
+    setSelection(null); // leave marker authoring
+    setRegionEditing(null);
+    setRName('');
+    setRSort('0');
+    setDraftPts([]);
+    setRegionDraw(true);
+  };
+
+  const regionStartEdit = (r: RegionResponse) => {
+    setSelection(null);
+    setRegionEditing(r);
+    setRName(r.name);
+    setRSort(String(r.sortOrder));
+    // The stored ring is auto-closed (last == first); drop the dup for editing.
+    const pts = r.polygon.slice();
+    const a = pts[0];
+    const z = pts[pts.length - 1];
+    if (pts.length > 1 && a[0] === z[0] && a[1] === z[1]) pts.pop();
+    setDraftPts(pts);
+    setRegionDraw(true);
+  };
+
+  const draftUndo = () => setDraftPts((p) => p.slice(0, -1));
+  const draftClear = () => setDraftPts([]);
+
+  const regionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (rName.trim() === '') {
+      setError('Region needs a name.');
+      return;
+    }
+    if (draftPts.length < 3) {
+      setError('Draw at least 3 points to form a region.');
+      return;
+    }
+    const input = {
+      name: rName.trim(),
+      sortOrder: Number(rSort) || 0,
+      polygon: draftPts,
+    };
+    try {
+      if (regionEditing) await updateRegion(regionEditing.id, input);
+      else await createRegion(mapId, input);
+      regionResetDraw();
+      reloadRegions();
+    } catch (err) {
+      setError(errMsg(err, 'region save failed'));
+    }
+  };
+
+  const regionRemove = async (r: RegionResponse) => {
+    if (!window.confirm(`Delete region "${r.name}"?`)) return;
+    try {
+      await deleteRegion(r.id);
+      if (regionEditing?.id === r.id) regionResetDraw();
+      reloadRegions();
+    } catch (err) {
+      setError(errMsg(err, 'region delete failed'));
+    }
+  };
+
   // --- render -----------------------------------------------------------------
   if (!meta) {
     return error ? (
@@ -410,7 +517,9 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
             {ready ? (
               <>
                 <div className="text-xs text-fg-dim px-1 pt-0.5 pb-2">
-                  Click the map to place a marker · click a marker to edit it
+                  {regionDraw
+                    ? 'Click to add polygon points · finish in the Regions panel →'
+                    : 'Click the map to place a marker · click a marker to edit it'}
                 </div>
                 <div className="relative h-[62vh] overflow-hidden rounded-md">
                   <MapView
@@ -418,9 +527,21 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                     categories={null}
                     found={EMPTY_FOUND}
                     onMarkerClick={selectExisting}
-                    onMapClick={selectNew}
+                    onMapClick={(p) => {
+                      if (regionDraw) {
+                        setDraftPts((pts) => [
+                          ...pts,
+                          [Number(p.x.toFixed(1)), Number(p.y.toFixed(1))],
+                        ]);
+                      } else {
+                        selectNew(p);
+                      }
+                    }}
                     markersVersion={markersVersion}
                     categoryIcons={categoryIcons}
+                    regions={regions}
+                    drawing={regionDraw}
+                    draftPolygon={regionDraw ? draftPts : null}
                   />
                 </div>
               </>
@@ -657,6 +778,11 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                       <td>
                         {c.parentId !== null && '↳ '}
                         {c.name}
+                        {(childCountById.get(c.id) ?? 0) > 0 && (
+                          <span className="ml-1 text-[11px] text-fg-dim">
+                            · group of {childCountById.get(c.id)}
+                          </span>
+                        )}
                       </td>
                       <td className="text-[13px] text-fg-dim">{c.slug}</td>
                       <td className="text-right whitespace-nowrap">
@@ -736,10 +862,17 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                   className="select"
                   value={catParent}
                   onChange={(e) => setCatParent(e.target.value)}
+                  disabled={editingHasChildren}
+                  aria-label="Group"
+                  title={
+                    editingHasChildren
+                      ? 'This category is a group (has children) and can’t be nested.'
+                      : 'Group (parent category)'
+                  }
                 >
-                  <option value="">no parent</option>
+                  <option value="">— top level (no group) —</option>
                   {categories
-                    .filter((c) => c.id !== catEditing?.id)
+                    .filter((c) => c.parentId === null && c.id !== catEditing?.id)
                     .map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -762,6 +895,116 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                 )}
               </div>
             </form>
+          </div>
+
+          <div className="panel mb-4">
+            <div className="panel-title">Regions</div>
+            {regions.length === 0 ? (
+              <p className="text-sm text-fg-dim">
+                None yet — draw a polygon area below.
+              </p>
+            ) : (
+              <table className="w-full text-sm [&_td]:border-t [&_td]:border-edge [&_td]:py-1.5 [&_td]:align-middle [&_tr:first-child_td]:border-t-0">
+                <tbody>
+                  {regions.map((r) => (
+                    <tr key={r.id}>
+                      <td style={{ width: 20 }}>
+                        <span
+                          className="inline-block h-3 w-3 rounded-sm align-middle"
+                          style={{ background: regionColor(r.id) }}
+                        />
+                      </td>
+                      <td>{r.name}</td>
+                      <td className="text-[13px] text-fg-dim">
+                        {r.polygon.length} pts
+                      </td>
+                      <td className="text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          className="btn btn-sm ml-1.5"
+                          onClick={() => regionStartEdit(r)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm ml-1.5"
+                          onClick={() => regionRemove(r)}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {regionDraw ? (
+              <form className="flex flex-col gap-2" onSubmit={regionSubmit}>
+                <div className="panel-title">
+                  {regionEditing ? `Edit "${regionEditing.name}"` : 'New region'}
+                </div>
+                <div className="text-xs text-fg-dim">
+                  Click the map to add points — {draftPts.length} point
+                  {draftPts.length === 1 ? '' : 's'} so far (need ≥3).
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="input"
+                    placeholder="name"
+                    value={rName}
+                    onChange={(e) => setRName(e.target.value)}
+                    required
+                  />
+                  <input
+                    className="input"
+                    placeholder="sort"
+                    value={rSort}
+                    onChange={(e) => setRSort(e.target.value)}
+                    style={{ maxWidth: 80 }}
+                    aria-label="sort order"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    className="btn btn-primary"
+                    type="submit"
+                    disabled={draftPts.length < 3 || rName.trim() === ''}
+                  >
+                    {regionEditing ? 'Save region' : 'Create region'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={draftUndo}
+                    disabled={draftPts.length === 0}
+                  >
+                    Undo point
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={draftClear}
+                    disabled={draftPts.length === 0}
+                  >
+                    Clear
+                  </button>
+                  <button type="button" className="btn" onClick={regionResetDraw}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={regionStartNew}
+                disabled={!ready}
+                title={ready ? undefined : 'Map must be READY to draw regions'}
+              >
+                Draw new region
+              </button>
+            )}
           </div>
 
           <div className="panel mb-4">

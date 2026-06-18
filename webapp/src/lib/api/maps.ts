@@ -1,5 +1,5 @@
 import { apiGet } from './client';
-import type { MapResponse, CategoryResponse } from '../types';
+import type { MapResponse, CategoryResponse, RegionResponse } from '../types';
 
 /**
  * A marker as the catalog stores it — unlike the tile-service viewport
@@ -41,4 +41,13 @@ export async function getCategories(
 /** Every marker on the map, descriptions included. Unpaginated by design. */
 export function getMarkers(mapId: number): Promise<CatalogMarker[]> {
   return apiGet<CatalogMarker[]>(`/api/v1/maps/${mapId}/markers`);
+}
+
+/** Regions for a map. On error returns [] (panel empty, map still renders). */
+export async function getRegions(mapId: number): Promise<RegionResponse[]> {
+  try {
+    return await apiGet<RegionResponse[]>(`/api/v1/maps/${mapId}/regions`);
+  } catch {
+    return [];
+  }
 }

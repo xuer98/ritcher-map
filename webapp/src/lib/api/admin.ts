@@ -4,7 +4,12 @@
 
 import { apiSend, getAuthToken } from './client';
 import type { CatalogMarker } from './maps';
-import type { CategoryResponse, GameResponse, MapResponse } from '../types';
+import type {
+  CategoryResponse,
+  GameResponse,
+  MapResponse,
+  RegionResponse,
+} from '../types';
 
 export interface CategoryInput {
   slug: string;
@@ -180,6 +185,44 @@ export function bulkImportMarkers(
     { markers },
     { auth: true },
   );
+}
+
+// --- regions ---------------------------------------------------------------
+// Polygon areas of a map. `polygon` is the exterior ring as [x, y] pixel pairs
+// (open or closed — the catalog auto-closes it). Drawn in the admin console.
+
+export interface RegionInput {
+  name: string;
+  sortOrder?: number;
+  polygon: [number, number][];
+}
+
+export function createRegion(
+  mapId: number,
+  input: RegionInput,
+): Promise<RegionResponse> {
+  return apiSend<RegionResponse>(
+    'POST',
+    `/api/v1/maps/${mapId}/regions`,
+    input,
+    { auth: true },
+  );
+}
+
+/** Patch a region; all fields optional on the wire (name/sortOrder/polygon). */
+export function updateRegion(
+  id: number,
+  input: Partial<RegionInput>,
+): Promise<RegionResponse> {
+  return apiSend<RegionResponse>('PUT', `/api/v1/regions/${id}`, input, {
+    auth: true,
+  });
+}
+
+export function deleteRegion(id: number): Promise<void> {
+  return apiSend<void>('DELETE', `/api/v1/regions/${id}`, undefined, {
+    auth: true,
+  });
 }
 
 // --- uploads ---------------------------------------------------------------

@@ -86,16 +86,20 @@ const ICON_TARGET_PX = 28;
 const ICON_PIXEL_RATIO = 2;
 
 /**
- * Rasterize an icon URL to ImageData for `map.addImage`. Uses an <img> + canvas
- * (not `map.loadImage`, whose createImageBitmap path can't decode SVG) so both
- * SVG and raster icons work; the icon is drawn as-is — fit, centered, into a
- * square so every category renders at a uniform size regardless of source
- * aspect/dimensions, with no disc or tint behind it.
+ * Load an image URL into a square canvas and return ImageData for
+ * `map.addImage`. Uses an <img> + canvas (not `map.loadImage`, whose
+ * createImageBitmap path can't decode SVG) so both SVG and raster icons work;
+ * the icon is drawn as-is — fit, centered — with no disc or tint behind it.
+ * `crossOrigin` is set for remote URLs so the canvas can be read back (the host
+ * must send GET CORS headers); blob: URLs are same-origin and never taint.
  */
-function rasterizeIcon(url: string): Promise<ImageData> {
+function drawIconToImageData(
+  url: string,
+  crossOrigin: boolean
+): Promise<ImageData> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous"; // cross-origin icons need GET CORS, else taint
+    if (crossOrigin) img.crossOrigin = "anonymous";
     img.onload = () => {
       const size = ICON_TARGET_PX * ICON_PIXEL_RATIO;
       const canvas = document.createElement("canvas");
@@ -118,6 +122,47 @@ function rasterizeIcon(url: string): Promise<ImageData> {
     };
     img.onerror = () => reject(new Error("icon load failed"));
     img.src = url;
+  });
+}
+
+/**
+ * Fetch an icon's bytes and rasterize via a same-origin blob URL. Fixes two
+ * things the direct-<img> path can't: (1) hosts (e.g. R2 by default) that serve
+ * an `.svg` as `application/octet-stream`, which <img> refuses to decode — we
+ * sniff the bytes and relabel it `image/svg+xml`; (2) SVG-on-canvas tainting in
+ * some browsers (Safari), since a blob: URL is same-origin. The fetch still
+ * needs the host to allow CORS — the same requirement as reading pixels back.
+ */
+async function rasterizeViaBlob(url: string): Promise<ImageData> {
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error(`icon fetch ${res.status}`);
+  let blob = await res.blob();
+  if (!blob.type.startsWith("image/")) {
+    const buf = await blob.arrayBuffer();
+    const head = new TextDecoder().decode(buf.slice(0, 256)).trimStart();
+    const isSvg = head.startsWith("<?xml") || head.includes("<svg");
+    blob = new Blob([buf], { type: isSvg ? "image/svg+xml" : blob.type });
+  }
+  const objUrl = URL.createObjectURL(blob);
+  try {
+    return await drawIconToImageData(objUrl, false);
+  } finally {
+    URL.revokeObjectURL(objUrl);
+  }
+}
+
+/**
+ * Rasterize an icon URL to ImageData. Tries a direct <img> first (fast path for
+ * same-origin built-ins and CORS-clean hosts); on failure (load error — e.g. an
+ * SVG mislabeled as octet-stream — or canvas taint) retries by fetching the
+ * bytes into a same-origin blob. Both paths need the remote host to allow CORS.
+ */
+function rasterizeIcon(url: string): Promise<ImageData> {
+  return drawIconToImageData(url, true).catch((err) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[rm-map] icon <img> load failed, retrying via fetch:", url, err);
+    }
+    return rasterizeViaBlob(url);
   });
 }
 
@@ -417,8 +462,15 @@ export const MapView: React.FC<MapViewProps> = ({
             loadedIconCats.current.add(catId);
             setIconsVersion((v) => v + 1);
           })
-          .catch(() => {
+          .catch((err) => {
             loadingIcons.current.delete(spriteId);
+            if (process.env.NODE_ENV !== "production") {
+              console.warn(
+                `[rm-map] category ${catId} icon failed (falls back to circle):`,
+                url,
+                err,
+              );
+            }
           });
       }
     };

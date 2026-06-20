@@ -14,7 +14,7 @@ memrepo = []
 "axum" = "0.8.9"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
 tower = "0.5.3"
-tower-http = { version = "0.6.11", features = ["trace", "cors"] }
+tower-http = { version = "0.7.0", features = ["trace", "cors"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # tls-rustls-ring-webpki: managed Postgres requires TLS (sslmode=require). Pure

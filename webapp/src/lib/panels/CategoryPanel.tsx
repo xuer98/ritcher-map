@@ -6,11 +6,16 @@ import { CategoryIcon } from './CategoryIcon';
 
 export interface CategoryPanelProps {
   categories: CategoryResponse[];
-  selected: Set<number>;
+  /** Category ids currently HIDDEN; everything else is shown. */
+  hidden: Set<number>;
+  /** Flip one category between shown and hidden. */
   onToggle: (id: number) => void;
-  /** Select (add) or deselect (remove) a batch of ids at once — group toggles. */
-  onToggleMany: (ids: number[], select: boolean) => void;
-  onToggleAll: () => void;
+  /** Hide (true) or show (false) a batch of ids at once — group toggles. */
+  onSetMany: (ids: number[], hidden: boolean) => void;
+  /** Show every category (clear hidden). */
+  onShowAll: () => void;
+  /** Hide every category. */
+  onHideAll: () => void;
 }
 
 interface CategoryNode {
@@ -22,8 +27,8 @@ interface CategoryNode {
  * Build a one-level nesting tree from the flat category list. Top-level
  * categories are those with no parentId (or whose parent is absent from the
  * list). A top-level category WITH children renders as a group; without
- * children it's an ordinary selectable category. Both levels sort by sortOrder
- * then name for stable display.
+ * children it's an ordinary category. Both levels sort by sortOrder then name
+ * for stable display.
  */
 function buildTree(categories: CategoryResponse[]): CategoryNode[] {
   const byId = new Map<number, CategoryResponse>();
@@ -97,20 +102,20 @@ function Chevron({ collapsed }: { collapsed: boolean }) {
 }
 
 /**
- * Category filter list. Convention: an EMPTY selection means "show ALL".
- * The "All" toggle clears the selection (back to showing everything). Parent
- * categories render as collapsible groups whose master toggle selects/clears
- * every member (the parent plus its children) at once.
+ * Category visibility list. A checked box means the category is SHOWN on the
+ * map; unchecking hides it. Everything is shown by default. Parent categories
+ * render as collapsible groups whose master toggle hides/shows every member (the
+ * parent plus its children); the "All" toggle hides/shows the whole map.
  */
 export const CategoryPanel: React.FC<CategoryPanelProps> = ({
   categories,
-  selected,
+  hidden,
   onToggle,
-  onToggleMany,
-  onToggleAll,
+  onSetMany,
+  onShowAll,
+  onHideAll,
 }) => {
   const tree = useMemo(() => buildTree(categories), [categories]);
-  const allActive = selected.size === 0;
   // Collapsed group ids; groups start expanded.
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
@@ -122,6 +127,10 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
       </div>
     );
   }
+
+  const hiddenCount = categories.filter((c) => hidden.has(c.id)).length;
+  const allVisible = hiddenCount === 0;
+  const noneVisible = hiddenCount === categories.length;
 
   const toggleCollapse = (id: number) =>
     setCollapsed((prev) => {
@@ -136,17 +145,17 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
     category: CategoryResponse,
     nested: boolean,
   ): React.JSX.Element => {
-    const isSelected = selected.has(category.id);
+    const isHidden = hidden.has(category.id);
     return (
       <label
         key={category.id}
         className={`flex items-center gap-2 text-sm px-1.5 py-1 rounded-md cursor-pointer select-none hover:bg-white/5${
           nested ? ' ml-[26px]' : ''
-        }${isSelected ? ' bg-accent/[0.14]' : ''}`}
+        }${isHidden ? ' opacity-45' : ''}`}
       >
         <input
           type="checkbox"
-          checked={isSelected}
+          checked={!isHidden}
           onChange={() => onToggle(category.id)}
         />
         <CategoryIcon icon={category.icon} categoryId={category.id} />
@@ -157,18 +166,23 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
 
   const renderGroup = (node: CategoryNode): React.JSX.Element => {
     const memberIds = [node.category.id, ...node.children.map((c) => c.id)];
-    const selCount = memberIds.filter((id) => selected.has(id)).length;
-    const allSelected = selCount === memberIds.length;
-    const someSelected = selCount > 0;
+    const hiddenInGroup = memberIds.filter((id) => hidden.has(id)).length;
+    const groupAllVisible = hiddenInGroup === 0;
+    const groupAllHidden = hiddenInGroup === memberIds.length;
     const isCollapsed = collapsed.has(node.category.id);
 
     return (
       <div key={node.category.id} className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-2 text-sm px-1.5 py-1 rounded-md hover:bg-white/5">
+        <div
+          className={`flex items-center gap-2 text-sm px-1.5 py-1 rounded-md hover:bg-white/5${
+            groupAllHidden ? ' opacity-45' : ''
+          }`}
+        >
           <TriCheckbox
-            checked={allSelected}
-            indeterminate={someSelected}
-            onChange={() => onToggleMany(memberIds, !allSelected)}
+            checked={groupAllVisible}
+            indeterminate={!groupAllVisible && !groupAllHidden}
+            // All visible -> hide the group; otherwise -> show all members.
+            onChange={() => onSetMany(memberIds, groupAllVisible)}
           />
           <button
             type="button"
@@ -194,12 +208,13 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
   return (
     <div className="panel">
       <div className="panel-title">Categories</div>
-      <label
-        className={`flex items-center gap-2 text-sm px-1.5 py-1 cursor-pointer select-none hover:bg-white/5 border-b border-edge rounded-none pb-2 font-semibold${
-          allActive ? ' bg-accent/[0.14]' : ''
-        }`}
-      >
-        <input type="checkbox" checked={allActive} onChange={onToggleAll} />
+      <label className="flex items-center gap-2 text-sm px-1.5 py-1 cursor-pointer select-none hover:bg-white/5 border-b border-edge rounded-none pb-2 font-semibold">
+        <TriCheckbox
+          checked={allVisible}
+          indeterminate={!allVisible && !noneVisible}
+          // All visible -> hide everything; otherwise -> show everything.
+          onChange={() => (allVisible ? onHideAll() : onShowAll())}
+        />
         <span className="flex-1 min-w-0 truncate">All</span>
       </label>
       <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">

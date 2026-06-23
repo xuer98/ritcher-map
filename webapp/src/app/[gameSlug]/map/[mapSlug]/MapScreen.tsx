@@ -49,7 +49,8 @@ export function MapScreen({
   const authed = token !== null;
   const progress = useProgressSync(meta.id, authed);
 
-  const [selectedCats, setSelectedCats] = useState<Set<number>>(new Set());
+  // Category ids that are HIDDEN; an empty set means everything is shown.
+  const [hiddenCats, setHiddenCats] = useState<Set<number>>(new Set());
   const [hideFound, setHideFound] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -109,24 +110,28 @@ export function MapScreen({
       .slice(0, SEARCH_LIMIT);
   }, [search, allMarkers]);
 
+  // Flip one category between shown and hidden.
   const toggleCat = (id: number) =>
-    setSelectedCats((prev) => {
+    setHiddenCats((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
 
-  // Add or remove a batch of category ids at once (a group's master toggle).
-  const toggleManyCats = (ids: number[], select: boolean) =>
-    setSelectedCats((prev) => {
+  // Hide or show a batch of categories at once (a group's master toggle).
+  const setManyHidden = (ids: number[], hidden: boolean) =>
+    setHiddenCats((prev) => {
       const next = new Set(prev);
       for (const id of ids) {
-        if (select) next.add(id);
+        if (hidden) next.add(id);
         else next.delete(id);
       }
       return next;
     });
+
+  const showAllCats = () => setHiddenCats(new Set());
+  const hideAllCats = () => setHiddenCats(new Set(categories.map((c) => c.id)));
 
   const jumpTo = (m: CatalogMarker) => {
     setSelectedId(m.id);
@@ -149,7 +154,17 @@ export function MapScreen({
     [markerById]
   );
 
-  const catFilter = selectedCats.size > 0 ? [...selectedCats] : null;
+  // The viewport endpoint shows ALL markers when no categories are passed, so we
+  // send the explicit list of VISIBLE categories. "Everything hidden" can't be
+  // an empty list (that reads as "all"), so use a sentinel id that matches none.
+  const allCatIds = categories.map((c) => c.id);
+  const visibleCatIds = allCatIds.filter((id) => !hiddenCats.has(id));
+  const catFilter =
+    visibleCatIds.length === allCatIds.length
+      ? null
+      : visibleCatIds.length === 0
+        ? [-1]
+        : visibleCatIds;
   const selected =
     selectedId === null ? null : markerById.get(selectedId) ?? null;
   const readyMaps = siblings
@@ -253,10 +268,11 @@ export function MapScreen({
 
         <CategoryPanel
           categories={categories}
-          selected={selectedCats}
+          hidden={hiddenCats}
           onToggle={toggleCat}
-          onToggleMany={toggleManyCats}
-          onToggleAll={() => setSelectedCats(new Set())}
+          onSetMany={setManyHidden}
+          onShowAll={showAllCats}
+          onHideAll={hideAllCats}
         />
 
         {regions.length > 0 && (

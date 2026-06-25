@@ -18,9 +18,12 @@ export function categoryColor(categoryId: number | null): string {
 }
 
 /**
- * Build the MapLibre layers for the marker source: a cluster circle (radius by
- * count), a cluster count label, and individual marker circles, with found
- * state shown via stroke + opacity.
+ * Build the MapLibre layers for the marker source. The source has clustering
+ * enabled (`cluster: true`), so MapLibre tags grouped points with `point_count`
+ * and leaves individual markers without it. We key the layer filters off that:
+ * a cluster circle (radius by count) + count label for `['has','point_count']`,
+ * and individual marker circle/symbol layers for the rest. Found state shows via
+ * stroke + opacity.
  *
  * Marker fill color reads an optional precomputed `color` feature property
  * (callers may set it via categoryColor); it falls back to a static accent.
@@ -30,7 +33,7 @@ export function buildLayers(): LayerSpecification[] {
     id: CLUSTER_LAYER_ID,
     type: 'circle',
     source: MARKER_SOURCE_ID,
-    filter: ['==', ['get', 'kind'], 'cluster'],
+    filter: ['has', 'point_count'],
     paint: {
       'circle-color': '#3b82f6',
       'circle-opacity': 0.85,
@@ -39,7 +42,7 @@ export function buildLayers(): LayerSpecification[] {
       'circle-radius': [
         'interpolate',
         ['linear'],
-        ['coalesce', ['get', 'count'], 0],
+        ['get', 'point_count'],
         2,
         14,
         25,
@@ -56,9 +59,9 @@ export function buildLayers(): LayerSpecification[] {
     id: CLUSTER_COUNT_LAYER_ID,
     type: 'symbol',
     source: MARKER_SOURCE_ID,
-    filter: ['==', ['get', 'kind'], 'cluster'],
+    filter: ['has', 'point_count'],
     layout: {
-      'text-field': ['to-string', ['coalesce', ['get', 'count'], '']],
+      'text-field': ['get', 'point_count_abbreviated'],
       'text-size': 12,
       'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
       'text-allow-overlap': true,
@@ -68,15 +71,15 @@ export function buildLayers(): LayerSpecification[] {
     },
   };
 
-  // Markers fall into two layers by whether their category has a loaded icon
-  // sprite (the `icon` feature prop, set in markers.ts): circle for the rest,
-  // symbol for icon-bearing ones. The filters are mutually exclusive so every
-  // marker renders exactly once.
+  // Unclustered markers (no `point_count`) fall into two layers by whether their
+  // category has a loaded icon sprite (the `icon` feature prop, set in
+  // markers.ts): circle for the rest, symbol for icon-bearing ones. The filters
+  // are mutually exclusive so every marker renders exactly once.
   const markerCircle: LayerSpecification = {
     id: MARKER_LAYER_ID,
     type: 'circle',
     source: MARKER_SOURCE_ID,
-    filter: ['all', ['==', ['get', 'kind'], 'marker'], ['!', ['has', 'icon']]],
+    filter: ['all', ['!', ['has', 'point_count']], ['!', ['has', 'icon']]],
     paint: {
       // Caller may inject a precomputed 'color' prop; otherwise accent.
       'circle-color': ['coalesce', ['get', 'color'], '#ef4444'],
@@ -91,7 +94,7 @@ export function buildLayers(): LayerSpecification[] {
     id: MARKER_SYMBOL_LAYER_ID,
     type: 'symbol',
     source: MARKER_SOURCE_ID,
-    filter: ['all', ['==', ['get', 'kind'], 'marker'], ['has', 'icon']],
+    filter: ['all', ['!', ['has', 'point_count']], ['has', 'icon']],
     layout: {
       'icon-image': ['get', 'icon'],
       'icon-size': 1,

@@ -154,17 +154,12 @@ export function MapScreen({
     [markerById]
   );
 
-  // The viewport endpoint shows ALL markers when no categories are passed, so we
-  // send the explicit list of VISIBLE categories. "Everything hidden" can't be
-  // an empty list (that reads as "all"), so use a sentinel id that matches none.
+  // MapView filters the full marker set by these category ids client-side:
+  // null = show everything; an explicit list (empty = none) = exactly those.
   const allCatIds = categories.map((c) => c.id);
   const visibleCatIds = allCatIds.filter((id) => !hiddenCats.has(id));
   const catFilter =
-    visibleCatIds.length === allCatIds.length
-      ? null
-      : visibleCatIds.length === 0
-        ? [-1]
-        : visibleCatIds;
+    visibleCatIds.length === allCatIds.length ? null : visibleCatIds;
   const selected =
     selectedId === null ? null : markerById.get(selectedId) ?? null;
   const readyMaps = siblings
@@ -177,6 +172,7 @@ export function MapScreen({
       <div className="absolute inset-0 z-0">
         <MapView
           meta={meta}
+          markers={allMarkers ?? []}
           categories={catFilter}
           found={progress.found}
           hideFound={hideFound}

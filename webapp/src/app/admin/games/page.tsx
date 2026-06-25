@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import {
@@ -185,6 +186,12 @@ export default function AdminGamesPage() {
                     <td className="text-[13px] text-fg-dim">{g.slug}</td>
                     <td>
                       <div className="flex justify-end gap-1">
+                        <Link
+                          className="btn btn-sm"
+                          href={`/admin/games/${g.slug}`}
+                        >
+                          Categories
+                        </Link>
                         <button
                           type="button"
                           className="btn btn-sm"

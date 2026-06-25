@@ -27,12 +27,17 @@ export function listMaps(): Promise<MapResponse[]> {
   return apiGet<MapResponse[]>('/api/v1/maps');
 }
 
-/** Categories for a map. On error returns [] (panel empty, map still renders). */
+/**
+ * Categories for a game (shared across all its maps). On error returns []
+ * (panel empty, map still renders).
+ */
 export async function getCategories(
-  mapId: number,
+  gameSlug: string,
 ): Promise<CategoryResponse[]> {
   try {
-    return await apiGet<CategoryResponse[]>(`/api/v1/maps/${mapId}/categories`);
+    return await apiGet<CategoryResponse[]>(
+      `/api/v1/games/${gameSlug}/categories`,
+    );
   } catch {
     return [];
   }

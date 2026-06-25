@@ -75,8 +75,8 @@ curl -X POST localhost:8081/api/v1/maps -H 'content-type: application/json' \
 curl -X POST localhost:8081/api/v1/maps/1/tiling -H 'content-type: application/json' \
   -d '{"sourceBucket":"uploads","sourceKey":"raw/elden-ring/overworld.png"}'
 
-# Create a category
-curl -X POST localhost:8081/api/v1/maps/1/categories -H 'content-type: application/json' \
+# Create a category (game-scoped — shared by every map of the game)
+curl -X POST localhost:8081/api/v1/games/elden-ring/categories -H 'content-type: application/json' \
   -d '{"slug":"sites-of-grace","name":"Sites of Grace","sortOrder":1}'
 
 # Add a marker

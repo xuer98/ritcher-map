@@ -9,4 +9,5 @@ public interface MapRepository extends JpaRepository<GameMap, Long> {
     Optional<GameMap> findByPrefix(String prefix);
     Optional<GameMap> findByGameSlugAndMapSlug(String gameSlug, String mapSlug);
     boolean existsByPrefix(String prefix);
+    boolean existsByGameSlug(String gameSlug);
 }

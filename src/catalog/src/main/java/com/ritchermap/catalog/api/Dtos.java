@@ -146,12 +146,12 @@ public final class Dtos {
     ) {}
 
     public record CategoryResponse(
-            long id, long mapId, Long parentId,
+            long id, String gameSlug, Long parentId,
             String slug, String name, String icon, int sortOrder
     ) {
         public static CategoryResponse from(Category c) {
             return new CategoryResponse(
-                    c.getId(), c.getMapId(), c.getParentId(),
+                    c.getId(), c.getGameSlug(), c.getParentId(),
                     c.getSlug(), c.getName(), c.getIcon(), c.getSortOrder()
             );
         }

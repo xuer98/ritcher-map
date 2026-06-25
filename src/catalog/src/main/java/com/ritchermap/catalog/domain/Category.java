@@ -5,13 +5,14 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 /**
- * Per-map marker grouping. Supports one level of nesting via {@code parentId}
- * so editors can build "Bosses > Field Bosses" etc.
+ * Per-game marker grouping, shared across every map of the game. Keyed by
+ * {@code gameSlug} (matching {@link GameMap#getGameSlug()}); supports one level
+ * of nesting via {@code parentId} so editors can build "Bosses > Field Bosses".
  */
 @Entity
 @Table(
         name = "categories",
-        uniqueConstraints = @UniqueConstraint(name = "uq_categories_map_slug", columnNames = {"map_id", "slug"})
+        uniqueConstraints = @UniqueConstraint(name = "uq_categories_game_slug", columnNames = {"game_slug", "slug"})
 )
 public class Category {
 
@@ -19,8 +20,8 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "map_id", nullable = false)
-    private Long mapId;
+    @Column(name = "game_slug", nullable = false)
+    private String gameSlug;
 
     @Column(name = "parent_id")
     private Long parentId;
@@ -44,14 +45,14 @@ public class Category {
 
     protected Category() {}
 
-    public Category(Long mapId, String slug, String name) {
-        this.mapId = mapId;
+    public Category(String gameSlug, String slug, String name) {
+        this.gameSlug = gameSlug;
         this.slug = slug;
         this.name = name;
     }
 
     public Long getId() { return id; }
-    public Long getMapId() { return mapId; }
+    public String getGameSlug() { return gameSlug; }
     public Long getParentId() { return parentId; }
     public String getSlug() { return slug; }
     public String getName() { return name; }

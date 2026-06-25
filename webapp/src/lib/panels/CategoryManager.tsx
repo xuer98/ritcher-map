@@ -103,6 +103,73 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
     ? (childCountById.get(editing.id) ?? 0) > 0
     : false;
 
+  // --- drag to reorder ------------------------------------------------------
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+
+  // Effective parent key per category (null = top level), matching orderedCats
+  // (a dangling parent counts as top level). Two rows are reorderable against
+  // each other only when they share this key — i.e. same level / same group.
+  const parentKeyById = useMemo(() => {
+    const ids = new Set(categories.map((c) => c.id));
+    const m = new Map<number, number | null>();
+    for (const c of categories) {
+      m.set(c.id, c.parentId !== null && ids.has(c.parentId) ? c.parentId : null);
+    }
+    return m;
+  }, [categories]);
+
+  const sameGroup = (a: number, b: number) =>
+    (parentKeyById.get(a) ?? null) === (parentKeyById.get(b) ?? null);
+
+  // Move `draggedId` into `targetId`'s slot among their shared siblings,
+  // renumber sortOrder 0..n-1, optimistically reorder, then persist the rows
+  // whose sortOrder actually changed (a drag usually touches a contiguous run).
+  const reorder = async (draggedId: number, targetId: number) => {
+    if (draggedId === targetId || !sameGroup(draggedId, targetId)) return;
+    const groupKey = parentKeyById.get(draggedId) ?? null;
+    const sortFn = (a: CategoryResponse, b: CategoryResponse): number =>
+      a.sortOrder - b.sortOrder || a.name.localeCompare(b.name);
+    const siblings = categories
+      .filter((c) => (parentKeyById.get(c.id) ?? null) === groupKey)
+      .sort(sortFn);
+    const from = siblings.findIndex((c) => c.id === draggedId);
+    const to = siblings.findIndex((c) => c.id === targetId);
+    if (from < 0 || to < 0) return;
+    const next = siblings.slice();
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+
+    const changed = next
+      .map((cat, sortOrder) => ({ cat, sortOrder }))
+      .filter(({ cat, sortOrder }) => cat.sortOrder !== sortOrder);
+    if (changed.length === 0) return;
+
+    // Optimistic: reflect the new order before the writes land.
+    const newOrder = new Map(changed.map(({ cat, sortOrder }) => [cat.id, sortOrder]));
+    setCategories((prev) =>
+      prev.map((c) =>
+        newOrder.has(c.id) ? { ...c, sortOrder: newOrder.get(c.id) as number } : c,
+      ),
+    );
+    try {
+      await Promise.all(
+        changed.map(({ cat, sortOrder }) =>
+          updateCategory(cat.id, {
+            slug: cat.slug,
+            name: cat.name,
+            icon: cat.icon,
+            sortOrder,
+            parentId: cat.parentId,
+          }),
+        ),
+      );
+    } catch (err) {
+      notify('error', errMsg(err, 'reorder failed'));
+      reload(); // resync from the server on partial failure
+    }
+  };
+
   // --- handlers -------------------------------------------------------------
   const onPickIcon = async (file: File | undefined) => {
     if (!file) return;
@@ -188,7 +255,8 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
     <div className="panel">
       <div className="panel-title">Categories</div>
       <p className="text-[13px] text-fg-dim">
-        Shared across every map of this game.
+        Shared across every map of this game. Drag the handle to reorder within
+        a level.
       </p>
       {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -208,8 +276,61 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
               .map(({ cat: c, depth, childCount }) => {
                 const isGroup = childCount > 0;
                 const isCollapsed = collapsed.has(c.id);
+                const isDropTarget =
+                  dragOverId === c.id && dragId !== null && dragId !== c.id;
                 return (
-                  <tr key={c.id}>
+                  <tr
+                    key={c.id}
+                    onDragOver={(e) => {
+                      if (dragId === null || dragId === c.id) return;
+                      if (!sameGroup(dragId, c.id)) return;
+                      e.preventDefault(); // mark this row a valid drop slot
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverId !== c.id) setDragOverId(c.id);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragId !== null) reorder(dragId, c.id);
+                      setDragId(null);
+                      setDragOverId(null);
+                    }}
+                    className={`${dragId === c.id ? 'opacity-40' : ''}${
+                      isDropTarget ? ' bg-accent/10' : ''
+                    }`}
+                  >
+                    <td style={{ width: 18 }}>
+                      <span
+                        aria-label={`Drag ${c.name} to reorder`}
+                        title="Drag to reorder within this level"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          // Firefox needs data set for the drag to start.
+                          e.dataTransfer.setData('text/plain', String(c.id));
+                          setDragId(c.id);
+                        }}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDragOverId(null);
+                        }}
+                        className="flex cursor-grab items-center justify-center text-fg-dim hover:text-fg active:cursor-grabbing"
+                      >
+                        <svg
+                          width="10"
+                          height="16"
+                          viewBox="0 0 10 16"
+                          aria-hidden="true"
+                          fill="currentColor"
+                        >
+                          <circle cx="2.5" cy="3" r="1.4" />
+                          <circle cx="7.5" cy="3" r="1.4" />
+                          <circle cx="2.5" cy="8" r="1.4" />
+                          <circle cx="7.5" cy="8" r="1.4" />
+                          <circle cx="2.5" cy="13" r="1.4" />
+                          <circle cx="7.5" cy="13" r="1.4" />
+                        </svg>
+                      </span>
+                    </td>
                     <td style={{ width: 22 }}>
                       <CategoryIcon icon={c.icon} categoryId={c.id} size={16} />
                     </td>

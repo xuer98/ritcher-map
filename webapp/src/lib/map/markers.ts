@@ -1,9 +1,8 @@
 import { pixelToLngLat } from './crs';
 import { categoryIconSpriteId } from '../icons';
-import type { ViewportResponse } from '../types';
+import type { CatalogMarker } from '../api/maps';
 
 export type MarkerFeatureProps = {
-  kind: 'marker';
   id: number;
   categoryId: number;
   title: string | null;
@@ -16,61 +15,40 @@ export type MarkerFeatureProps = {
   icon?: string;
 };
 
-export type ClusterFeatureProps = {
-  kind: 'cluster';
-  count: number;
-  categoryId: number | null;
-};
-
-export type AnyProps = MarkerFeatureProps | ClusterFeatureProps;
-
 /**
- * Convert a viewport response into a MapLibre-ready FeatureCollection.
- * Marker/cluster pixel coords are projected to lng/lat at maxZoom.
- * Marker features get feature.id = marker id and props.found from `found`.
+ * Convert the full catalog marker list into a MapLibre-ready FeatureCollection.
+ * The source has clustering enabled, so MapLibre groups these points into
+ * clusters per zoom; we just emit one point feature per marker. Pixel coords are
+ * projected to lng/lat at maxZoom. `id` is stored in properties (not just
+ * feature.id) because clustering reindexes feature ids — selection reads
+ * properties.id.
  */
-export function viewportToGeoJSON(
-  resp: ViewportResponse,
+export function markersToGeoJSON(
+  markers: CatalogMarker[],
   maxZoom: number,
   found: Set<number>,
   /** Categories whose icon sprite is loaded; their markers render as symbols. */
   iconCategoryIds?: ReadonlySet<number>,
-): GeoJSON.FeatureCollection<GeoJSON.Point, AnyProps> {
-  const features: Array<GeoJSON.Feature<GeoJSON.Point, AnyProps>> = [];
+): GeoJSON.FeatureCollection<GeoJSON.Point, MarkerFeatureProps> {
+  const features: Array<GeoJSON.Feature<GeoJSON.Point, MarkerFeatureProps>> = [];
 
-  if (resp.kind === 'markers') {
-    for (const m of resp.markers) {
-      const { lng, lat } = pixelToLngLat(m.x, m.y, maxZoom);
-      const props: MarkerFeatureProps = {
-        kind: 'marker',
-        id: m.id,
-        categoryId: m.category_id,
-        title: m.title,
-        found: found.has(m.id),
-      };
-      if (iconCategoryIds?.has(m.category_id)) {
-        props.icon = categoryIconSpriteId(m.category_id);
-      }
-      features.push({
-        type: 'Feature',
-        id: m.id,
-        geometry: { type: 'Point', coordinates: [lng, lat] },
-        properties: props,
-      });
+  for (const m of markers) {
+    const { lng, lat } = pixelToLngLat(m.x, m.y, maxZoom);
+    const props: MarkerFeatureProps = {
+      id: m.id,
+      categoryId: m.categoryId,
+      title: m.title,
+      found: found.has(m.id),
+    };
+    if (iconCategoryIds?.has(m.categoryId)) {
+      props.icon = categoryIconSpriteId(m.categoryId);
     }
-  } else {
-    for (const c of resp.clusters) {
-      const { lng, lat } = pixelToLngLat(c.x, c.y, maxZoom);
-      features.push({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [lng, lat] },
-        properties: {
-          kind: 'cluster',
-          count: c.count,
-          categoryId: c.category_id,
-        },
-      });
-    }
+    features.push({
+      type: 'Feature',
+      id: m.id,
+      geometry: { type: 'Point', coordinates: [lng, lat] },
+      properties: props,
+    });
   }
 
   return { type: 'FeatureCollection', features };

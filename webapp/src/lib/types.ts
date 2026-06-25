@@ -2,48 +2,13 @@
 //   - tile-service (markers) + progress + accounts: snake_case
 //   - catalog (/api/v1/...): camelCase
 
-/** Pixel-space bounding box: [minX, minY, maxX, maxY]; requires max > min. */
+/**
+ * Pixel-space bounding box: [minX, minY, maxX, maxY]; requires max > min.
+ * Retained for the pixel/geo CRS helpers (`viewportToPixelBbox`); the webapp
+ * now loads all markers up front and clusters them client-side rather than
+ * fetching per-viewport.
+ */
 export type Bbox = [minX: number, minY: number, maxX: number, maxY: number];
-
-// ----------------------------------------------------------------------------
-// tile-service: GET /maps/{mapId}/markers  (snake_case, x/y are PIXEL space)
-// ----------------------------------------------------------------------------
-
-export interface Marker {
-  id: number;
-  category_id: number;
-  x: number;
-  y: number;
-  title: string | null;
-}
-
-export interface Cluster {
-  x: number;
-  y: number;
-  count: number;
-  category_id: number | null;
-}
-
-export interface MarkersResponse {
-  kind: 'markers';
-  markers: Marker[];
-  map_id: number;
-  zoom: number;
-  total: number;
-  clustered: false;
-}
-
-export interface ClustersResponse {
-  kind: 'clusters';
-  clusters: Cluster[];
-  map_id: number;
-  zoom: number;
-  total: number;
-  clustered: true;
-}
-
-/** Discriminated union on the `kind` field. */
-export type ViewportResponse = MarkersResponse | ClustersResponse;
 
 // ----------------------------------------------------------------------------
 // catalog: /api/v1/maps, /api/v1/maps/{id}, /api/v1/games/{gameSlug}/categories

@@ -11,9 +11,10 @@ import type {
 } from "maplibre-gl";
 
 import { tileTemplateUrl } from "../api/client";
+import type { CatalogMarker } from "../api/maps";
 import { TILE_SIZE } from "../config";
 import { categoryIconSpriteId } from "../icons";
-import type { MapResponse, RegionResponse, ViewportResponse } from "../types";
+import type { MapResponse, RegionResponse } from "../types";
 import { imageBounds, lngLatToPixel, pixelToLngLat } from "./crs";
 import {
   buildLayers,
@@ -22,7 +23,7 @@ import {
   MARKER_SOURCE_ID,
   MARKER_SYMBOL_LAYER_ID,
 } from "./layers";
-import { viewportToGeoJSON, type AnyProps } from "./markers";
+import { markersToGeoJSON, type MarkerFeatureProps } from "./markers";
 import {
   buildRegionLayers,
   REGION_FILL_LAYER_ID,
@@ -37,10 +38,15 @@ import {
   DRAFT_SOURCE_ID,
   draftToGeoJSON,
 } from "./regionDraft";
-import { useViewportMarkers } from "./useViewportMarkers";
 
 export interface MapViewProps {
   meta: MapResponse;
+  /** Every marker on the map; rendered client-side with MapLibre clustering. */
+  markers: CatalogMarker[];
+  /**
+   * Visible category ids, or null for "all". Markers are filtered to these
+   * before clustering; an empty array shows none.
+   */
   categories: number[] | null;
   found: Set<number>;
   /** Hide found markers from the map entirely (not just restyle them). */
@@ -53,8 +59,6 @@ export interface MapViewProps {
    * uses this for click-to-place marker authoring.
    */
   onMapClick?: (point: { x: number; y: number }) => void;
-  /** Bump to force a viewport-marker refetch (after authoring mutations). */
-  markersVersion?: number;
   /**
    * categoryId -> resolved icon URL. Markers in these categories render as the
    * icon image once it loads; everything else stays a colored circle.
@@ -166,20 +170,9 @@ function rasterizeIcon(url: string): Promise<ImageData> {
   });
 }
 
-const EMPTY_FC: GeoJSON.FeatureCollection<GeoJSON.Point, AnyProps> = {
+const EMPTY_FC: GeoJSON.FeatureCollection<GeoJSON.Point, MarkerFeatureProps> = {
   type: "FeatureCollection",
   features: [],
-};
-
-// An empty markers response so viewportToGeoJSON (which requires a
-// ViewportResponse) can be called uniformly before the first fetch resolves.
-const EMPTY_RESPONSE: ViewportResponse = {
-  kind: "markers",
-  markers: [],
-  map_id: 0,
-  zoom: 0,
-  total: 0,
-  clustered: false,
 };
 
 /** [[swLng,swLat],[neLng,neLat]] -> [minLng,minLat,maxLng,maxLat] for raster source bounds. */
@@ -220,6 +213,12 @@ function buildStyle(meta: MapResponse): StyleSpecification {
       [MARKER_SOURCE_ID]: {
         type: "geojson",
         data: EMPTY_FC,
+        // Cluster the full marker set client-side. clusterMaxZoom keeps dense
+        // groups merged until near the deepest zoom; isolated markers always
+        // render individually. Tune clusterRadius for tighter/looser grouping.
+        cluster: true,
+        clusterRadius: 50,
+        clusterMaxZoom: Math.max(0, maxZoom - 1),
       },
     },
     layers: [
@@ -241,13 +240,13 @@ function buildStyle(meta: MapResponse): StyleSpecification {
 
 export const MapView: React.FC<MapViewProps> = ({
   meta,
+  markers,
   categories,
   found,
   hideFound = false,
   onMarkerClick,
   focus = null,
   onMapClick,
-  markersVersion = 0,
   categoryIcons,
   regions,
   regionFocus = null,
@@ -324,12 +323,34 @@ export const MapView: React.FC<MapViewProps> = ({
       if (drawingRef.current) return; // every click is a draft vertex
       const feature = e.features?.[0];
       if (!feature) return;
+      // Read properties.id, not feature.id: clustering reindexes feature ids,
+      // so the original marker id only survives in our own property.
+      const propId = (feature.properties as { id?: number }).id;
       const id =
-        feature.id !== undefined && feature.id !== null
-          ? Number(feature.id)
-          : Number((feature.properties as { id?: number }).id);
+        propId !== undefined && propId !== null
+          ? Number(propId)
+          : Number(feature.id);
       if (Number.isNaN(id)) return;
       onClickRef.current(id);
+    };
+
+    // Clicking a cluster zooms in until it breaks apart (supercluster's
+    // expansion zoom). The marker layers' own click handler still fires for
+    // unclustered markers; this only covers the cluster circle.
+    const onClusterClick = (e: MapLayerMouseEvent): void => {
+      if (drawingRef.current) return;
+      const feature = e.features?.[0];
+      const clusterId = (feature?.properties as { cluster_id?: number })
+        ?.cluster_id;
+      const src = map.getSource(MARKER_SOURCE_ID) as GeoJSONSource | undefined;
+      if (clusterId === undefined || !src) return;
+      src
+        .getClusterExpansionZoom(clusterId)
+        .then((zoom) => {
+          const coords = (feature!.geometry as GeoJSON.Point).coordinates;
+          map.easeTo({ center: [coords[0], coords[1]], zoom });
+        })
+        .catch(() => {});
     };
 
     const onEnter = (e: MapLayerMouseEvent): void => {
@@ -361,7 +382,11 @@ export const MapView: React.FC<MapViewProps> = ({
       // queryRenderedFeatures THROWS for a layer the style hasn't loaded yet,
       // and clicks can land before 'load' — query only layers that exist and
       // treat the rest as "no marker hit".
-      const guard = [...MARKER_INTERACTIVE_LAYERS, REGION_FILL_LAYER_ID];
+      const guard = [
+        ...MARKER_INTERACTIVE_LAYERS,
+        CLUSTER_LAYER_ID,
+        REGION_FILL_LAYER_ID,
+      ];
       const present = guard.filter((l) => map.getLayer(l));
       const hits = present.length
         ? map.queryRenderedFeatures(e.point, { layers: present })
@@ -397,6 +422,10 @@ export const MapView: React.FC<MapViewProps> = ({
       map.on("mouseenter", layer, onEnter);
       map.on("mouseleave", layer, onLeave);
     }
+    // Cluster circle: click zooms in; cursor turns to a pointer on hover.
+    map.on("click", CLUSTER_LAYER_ID, onClusterClick);
+    map.on("mouseenter", CLUSTER_LAYER_ID, onRegionEnter);
+    map.on("mouseleave", CLUSTER_LAYER_ID, onRegionLeave);
     map.on("click", REGION_FILL_LAYER_ID, onRegionClick);
     map.on("mouseenter", REGION_FILL_LAYER_ID, onRegionEnter);
     map.on("mouseleave", REGION_FILL_LAYER_ID, onRegionLeave);
@@ -407,6 +436,9 @@ export const MapView: React.FC<MapViewProps> = ({
       map.off("click", REGION_FILL_LAYER_ID, onRegionClick);
       map.off("mouseenter", REGION_FILL_LAYER_ID, onRegionEnter);
       map.off("mouseleave", REGION_FILL_LAYER_ID, onRegionLeave);
+      map.off("click", CLUSTER_LAYER_ID, onClusterClick);
+      map.off("mouseenter", CLUSTER_LAYER_ID, onRegionEnter);
+      map.off("mouseleave", CLUSTER_LAYER_ID, onRegionLeave);
       for (const layer of MARKER_INTERACTIVE_LAYERS) {
         map.off("click", layer, onClick);
         map.off("mouseenter", layer, onEnter);
@@ -420,13 +452,9 @@ export const MapView: React.FC<MapViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.id, ready]);
 
-  const vp = useViewportMarkers(
-    mapInstance,
-    ready ? meta.id : null,
-    meta.maxZoom,
-    categories,
-    markersVersion
-  );
+  // Stable dependency key for the categories filter (the array identity churns
+  // on every parent render, but its contents rarely change).
+  const categoriesKey = categories ? categories.join(",") : "all";
 
   // Sprites live on a specific map instance; drop the loaded-set when the map
   // is (re)created so we don't tag markers with sprites the new map lacks.
@@ -484,7 +512,10 @@ export const MapView: React.FC<MapViewProps> = ({
     };
   }, [mapInstance, categoryIcons]);
 
-  // Push viewport response + found state into the GeoJSON source.
+  // Build marker GeoJSON from the full list — filtered by visible categories
+  // and (when hideFound) found markers — and push it into the clustered source.
+  // Filtering happens BEFORE setData so cluster counts reflect what's shown;
+  // setData re-clusters.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -492,21 +523,12 @@ export const MapView: React.FC<MapViewProps> = ({
     const apply = (): void => {
       const src = map.getSource(MARKER_SOURCE_ID) as GeoJSONSource | undefined;
       if (!src) return;
-      const fc = viewportToGeoJSON(
-        vp.response ?? EMPTY_RESPONSE,
-        meta.maxZoom ?? 0,
-        found,
-        loadedIconCats.current
-      );
+      const catSet = categories ? new Set(categories) : null;
+      let list = markers;
+      if (catSet) list = list.filter((m) => catSet.has(m.categoryId));
+      if (hideFound) list = list.filter((m) => !found.has(m.id));
       src.setData(
-        hideFound
-          ? {
-              ...fc,
-              features: fc.features.filter(
-                (f) => !(f.properties.kind === "marker" && f.properties.found)
-              ),
-            }
-          : fc
+        markersToGeoJSON(list, meta.maxZoom ?? 0, found, loadedIconCats.current)
       );
     };
 
@@ -524,7 +546,9 @@ export const MapView: React.FC<MapViewProps> = ({
       map.off("load", apply);
       map.off("idle", apply);
     };
-  }, [vp.response, found, hideFound, meta.maxZoom, iconsVersion]);
+    // categoriesKey stands in for the `categories` array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markers, categoriesKey, found, hideFound, meta.maxZoom, iconsVersion]);
 
   // Fly to a requested marker (search hit / external selection).
   useEffect(() => {
@@ -611,11 +635,6 @@ export const MapView: React.FC<MapViewProps> = ({
       {!ready && (
         <div className="absolute inset-0 z-5 flex items-center justify-center bg-bg/70 text-fg-dim text-[15px] pointer-events-none">
           Map not ready yet (status: {meta.status})
-        </div>
-      )}
-      {vp.error && ready && (
-        <div className="absolute left-1/2 bottom-4.5 -translate-x-1/2 z-6 bg-[rgba(40,12,12,0.92)] border border-danger/50 text-[#ffb4b4] text-[13px] px-3 py-2 rounded-lg">
-          Markers failed: {vp.error}
         </div>
       )}
     </div>

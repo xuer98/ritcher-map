@@ -55,7 +55,6 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [markers, setMarkers] = useState<CatalogMarker[]>([]);
   const [regions, setRegions] = useState<RegionResponse[]>([]);
-  const [markersVersion, setMarkersVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // Transient success/error feedback for save/delete operations. The `error`
   // banner above stays for synchronous form validation and fatal load errors.
@@ -256,7 +255,6 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
   );
 
   const markerMutated = () => {
-    setMarkersVersion((v) => v + 1);
     reloadMarkers();
   };
 
@@ -449,6 +447,7 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                 <div className="relative h-[62vh] overflow-hidden rounded-md">
                   <MapView
                     meta={meta}
+                    markers={markers}
                     categories={null}
                     found={EMPTY_FOUND}
                     onMarkerClick={selectExisting}
@@ -462,7 +461,6 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                         selectNew(p);
                       }
                     }}
-                    markersVersion={markersVersion}
                     categoryIcons={categoryIcons}
                     regions={regions}
                     drawing={regionDraw}

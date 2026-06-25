@@ -1,0 +1,9 @@
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/resources/db/migration/V6__categories_by_game.sql","timestamp":1782328484287,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/java/com/ritchermap/catalog/domain/Category.java","timestamp":1782328510061,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/java/com/ritchermap/catalog/repo/CategoryRepository.java","timestamp":1782328521826,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/java/com/ritchermap/catalog/repo/MapRepository.java","timestamp":1782328532560,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/java/com/ritchermap/catalog/service/CategoryService.java","timestamp":1782328560188,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/java/com/ritchermap/catalog/service/MarkerService.java","timestamp":1782328590243,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/java/com/ritchermap/catalog/api/CategoryController.java","timestamp":1782328604140,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/src/main/java/com/ritchermap/catalog/api/Dtos.java","timestamp":1782328615506,"sessionId":null}
+{"type":"edit","file":"/Users/richardtang/Desktop/repos/ritcher-map/src/catalog/README.md","timestamp":1782328625931,"sessionId":null}

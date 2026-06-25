@@ -51,11 +51,13 @@ public class MarkerService {
     }
 
     private void requireMapAndCategory(long mapId, long categoryId) {
-        if (!maps.existsById(mapId)) throw NotFoundException.of("map", mapId);
+        var map = maps.findById(mapId)
+                .orElseThrow(() -> NotFoundException.of("map", mapId));
         var cat = categories.findById(categoryId)
                 .orElseThrow(() -> NotFoundException.of("category", categoryId));
-        if (!cat.getMapId().equals(mapId)) {
-            throw NotFoundException.of("category in map " + mapId, categoryId);
+        // Categories are game-scoped: the marker's map must share the game.
+        if (!cat.getGameSlug().equals(map.getGameSlug())) {
+            throw NotFoundException.of("category in game " + map.getGameSlug(), categoryId);
         }
     }
 

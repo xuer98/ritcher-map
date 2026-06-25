@@ -48,7 +48,7 @@ export default async function MapPage({ params }: Props) {
   if (!meta) notFound();
 
   const [categories, regions, game] = await Promise.all([
-    fetchCategories(meta.id),
+    fetchCategories(gameSlug),
     fetchRegions(meta.id),
     fetchGame(gameSlug),
   ]);

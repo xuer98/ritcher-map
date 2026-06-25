@@ -46,7 +46,7 @@ export interface ClustersResponse {
 export type ViewportResponse = MarkersResponse | ClustersResponse;
 
 // ----------------------------------------------------------------------------
-// catalog: /api/v1/maps, /api/v1/maps/{id}, /api/v1/maps/{mapId}/categories
+// catalog: /api/v1/maps, /api/v1/maps/{id}, /api/v1/games/{gameSlug}/categories
 //   (camelCase)
 // ----------------------------------------------------------------------------
 
@@ -89,7 +89,8 @@ export interface GameResponse {
 
 export interface CategoryResponse {
   id: number;
-  mapId: number;
+  /** Categories are game-scoped — shared across every map of the game. */
+  gameSlug: string;
   parentId: number | null;
   slug: string;
   name: string;

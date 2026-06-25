@@ -119,12 +119,12 @@ export function deleteGame(slug: string): Promise<void> {
 // --- categories ---------------------------------------------------------------
 
 export function createCategory(
-  mapId: number,
+  gameSlug: string,
   input: CategoryInput,
 ): Promise<CategoryResponse> {
   return apiSend<CategoryResponse>(
     'POST',
-    `/api/v1/maps/${mapId}/categories`,
+    `/api/v1/games/${gameSlug}/categories`,
     input,
     { auth: true },
   );

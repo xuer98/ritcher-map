@@ -37,11 +37,12 @@ export async function fetchMap(
 }
 
 export async function fetchCategories(
-  mapId: number,
+  gameSlug: string,
 ): Promise<CategoryResponse[]> {
   return (
-    (await gatewayJson<CategoryResponse[]>(`/api/v1/maps/${mapId}/categories`)) ??
-    []
+    (await gatewayJson<CategoryResponse[]>(
+      `/api/v1/games/${gameSlug}/categories`,
+    )) ?? []
   );
 }
 

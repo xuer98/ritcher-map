@@ -19,16 +19,16 @@ public class CategoryController {
 
     public CategoryController(CategoryService categories) { this.categories = categories; }
 
-    @GetMapping("/maps/{mapId}/categories")
-    public List<CategoryResponse> list(@PathVariable long mapId) {
-        return categories.list(mapId).stream().map(CategoryResponse::from).toList();
+    @GetMapping("/games/{gameSlug}/categories")
+    public List<CategoryResponse> list(@PathVariable String gameSlug) {
+        return categories.list(gameSlug).stream().map(CategoryResponse::from).toList();
     }
 
-    @PostMapping("/maps/{mapId}/categories")
+    @PostMapping("/games/{gameSlug}/categories")
     public ResponseEntity<CategoryResponse> create(
-            @PathVariable long mapId,
+            @PathVariable String gameSlug,
             @Valid @RequestBody CategoryRequest req) {
-        var saved = categories.create(mapId, req.slug(), req.name(), req.icon(),
+        var saved = categories.create(gameSlug, req.slug(), req.name(), req.icon(),
                 req.sortOrder(), req.parentId());
         return ResponseEntity
                 .created(URI.create("/api/v1/categories/" + saved.getId()))

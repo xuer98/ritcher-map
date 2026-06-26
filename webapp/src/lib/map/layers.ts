@@ -4,10 +4,18 @@ import type { LayerSpecification } from 'maplibre-gl';
 export const MARKER_SOURCE_ID = 'rm-markers';
 
 export const CLUSTER_LAYER_ID = 'rm-clusters';
-const CLUSTER_COUNT_LAYER_ID = 'rm-cluster-count';
+export const CLUSTER_COUNT_LAYER_ID = 'rm-cluster-count';
 /** Iconless markers (circle) and icon markers (symbol). Both are clickable. */
 export const MARKER_LAYER_ID = 'rm-marker-points';
 export const MARKER_SYMBOL_LAYER_ID = 'rm-marker-symbols';
+
+/** All layers reading the marker source, in render order (cluster beneath markers). */
+export const MARKER_LAYER_IDS = [
+  CLUSTER_LAYER_ID,
+  CLUSTER_COUNT_LAYER_ID,
+  MARKER_LAYER_ID,
+  MARKER_SYMBOL_LAYER_ID,
+] as const;
 
 /** Deterministic color from a category id. null -> neutral grey. */
 export function categoryColor(categoryId: number | null): string {

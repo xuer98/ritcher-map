@@ -6,6 +6,8 @@ import { CategoryIcon } from './CategoryIcon';
 
 export interface CategoryPanelProps {
   categories: CategoryResponse[];
+  /** Marker count per category id ON THIS MAP (0 if absent). */
+  counts: ReadonlyMap<number, number>;
   /** Category ids currently HIDDEN; everything else is shown. */
   hidden: Set<number>;
   /** Flip one category between shown and hidden. */
@@ -109,6 +111,7 @@ function Chevron({ collapsed }: { collapsed: boolean }) {
  */
 export const CategoryPanel: React.FC<CategoryPanelProps> = ({
   categories,
+  counts,
   hidden,
   onToggle,
   onSetMany,
@@ -160,6 +163,9 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
         />
         <CategoryIcon icon={category.icon} categoryId={category.id} />
         <span className="flex-1 min-w-0 truncate">{category.name}</span>
+        <span className="flex-none text-xs text-fg-dim tabular-nums">
+          {counts.get(category.id) ?? 0}
+        </span>
       </label>
     );
   };
@@ -170,6 +176,8 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
     const groupAllVisible = hiddenInGroup === 0;
     const groupAllHidden = hiddenInGroup === memberIds.length;
     const isCollapsed = collapsed.has(node.category.id);
+    // Group total = this map's markers across the parent + all its children.
+    const groupCount = memberIds.reduce((sum, id) => sum + (counts.get(id) ?? 0), 0);
 
     return (
       <div key={node.category.id} className="flex flex-col gap-0.5">
@@ -196,7 +204,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
               {node.category.name}
             </span>
             <span className="flex-none text-xs text-fg-dim tabular-nums">
-              {node.children.length}
+              {groupCount}
             </span>
           </button>
         </div>

@@ -87,6 +87,16 @@ export function MapScreen({
     () => new Map((allMarkers ?? []).map((m) => [m.id, m])),
     [allMarkers]
   );
+  // Marker count per category ON THIS MAP. Categories are game-scoped (shared by
+  // every map of the game), so the panel must count this map's markers — not the
+  // category's subcategory count, which is identical across all the game's maps.
+  const markerCountByCategory = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const mk of allMarkers ?? []) {
+      m.set(mk.categoryId, (m.get(mk.categoryId) ?? 0) + 1);
+    }
+    return m;
+  }, [allMarkers]);
   const categoryById = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
     [categories]
@@ -264,6 +274,7 @@ export function MapScreen({
 
         <CategoryPanel
           categories={categories}
+          counts={markerCountByCategory}
           hidden={hiddenCats}
           onToggle={toggleCat}
           onSetMany={setManyHidden}

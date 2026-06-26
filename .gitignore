@@ -341,3 +341,5 @@ venv/
 .ruff_cache/
 tiles/
 scripts/
+!webapp/scripts/
+.agents/

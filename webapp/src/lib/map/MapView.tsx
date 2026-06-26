@@ -12,7 +12,7 @@ import type {
 
 import { tileTemplateUrl } from "../api/client";
 import type { CatalogMarker } from "../api/maps";
-import { TILE_SIZE } from "../config";
+import { SERVER_CLUSTER_LIMIT, TILE_SIZE } from "../config";
 import { categoryIconSpriteId } from "../icons";
 import type { MapResponse, RegionResponse } from "../types";
 import { imageBounds, lngLatToPixel, pixelToLngLat } from "./crs";
@@ -20,6 +20,7 @@ import {
   buildLayers,
   CLUSTER_LAYER_ID,
   MARKER_LAYER_ID,
+  MARKER_LAYER_IDS,
   MARKER_SOURCE_ID,
   MARKER_SYMBOL_LAYER_ID,
 } from "./layers";
@@ -211,14 +212,12 @@ function buildStyle(meta: MapResponse): StyleSpecification {
         bounds,
       },
       [MARKER_SOURCE_ID]: {
+        // Created non-clustered; the marker effect recreates it WITH clustering
+        // only when the map has more than SERVER_CLUSTER_LIMIT markers. Sparse
+        // maps render every marker individually (clustering a handful across a
+        // huge map would just hide them in a bubble at the fit-to-image zoom).
         type: "geojson",
         data: EMPTY_FC,
-        // Cluster the full marker set client-side. clusterMaxZoom keeps dense
-        // groups merged until near the deepest zoom; isolated markers always
-        // render individually. Tune clusterRadius for tighter/looser grouping.
-        cluster: true,
-        clusterRadius: 50,
-        clusterMaxZoom: Math.max(0, maxZoom - 1),
       },
     },
     layers: [
@@ -262,6 +261,9 @@ export const MapView: React.FC<MapViewProps> = ({
   // tag markers as symbols) and which are mid-load (de-dupes loadImage calls).
   const loadedIconCats = useRef<Set<number>>(new Set());
   const loadingIcons = useRef<Set<string>>(new Set());
+  // Whether the marker source is currently clustered. The style builds it
+  // non-clustered; the marker effect recreates it clustered past the threshold.
+  const clusteredRef = useRef(false);
   // Bumped when a sprite finishes loading, to re-tag/redraw the marker source.
   const [iconsVersion, setIconsVersion] = useState(0);
 
@@ -456,11 +458,17 @@ export const MapView: React.FC<MapViewProps> = ({
   // on every parent render, but its contents rarely change).
   const categoriesKey = categories ? categories.join(",") : "all";
 
+  // Cluster only when a map is genuinely dense — matches the old server's
+  // SERVER_CLUSTER_LIMIT behavior. Clustering a handful of markers across a huge
+  // map would collapse them into a single bubble at the fit-to-image zoom.
+  const shouldCluster = markers.length > SERVER_CLUSTER_LIMIT;
+
   // Sprites live on a specific map instance; drop the loaded-set when the map
   // is (re)created so we don't tag markers with sprites the new map lacks.
   useEffect(() => {
     loadedIconCats.current = new Set();
     loadingIcons.current = new Set();
+    clusteredRef.current = false; // new map's style source is non-clustered
     setIconsVersion(0);
   }, [mapInstance]);
 
@@ -521,6 +529,30 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!map) return;
 
     const apply = (): void => {
+      // Recreate the marker source (+ its layers) when the desired clustering
+      // differs from the current one — e.g. once a dense map's markers load.
+      // Sparse maps never enter this branch (both stay false from the style).
+      if (clusteredRef.current !== shouldCluster) {
+        for (const id of MARKER_LAYER_IDS) {
+          if (map.getLayer(id)) map.removeLayer(id);
+        }
+        if (map.getSource(MARKER_SOURCE_ID)) map.removeSource(MARKER_SOURCE_ID);
+        map.addSource(
+          MARKER_SOURCE_ID,
+          shouldCluster
+            ? {
+                type: "geojson",
+                data: EMPTY_FC,
+                cluster: true,
+                clusterRadius: 50,
+                clusterMaxZoom: Math.max(0, (meta.maxZoom ?? 0) - 1),
+              }
+            : { type: "geojson", data: EMPTY_FC }
+        );
+        for (const layer of buildLayers()) map.addLayer(layer);
+        clusteredRef.current = shouldCluster;
+      }
+
       const src = map.getSource(MARKER_SOURCE_ID) as GeoJSONSource | undefined;
       if (!src) return;
       const catSet = categories ? new Set(categories) : null;
@@ -548,7 +580,15 @@ export const MapView: React.FC<MapViewProps> = ({
     };
     // categoriesKey stands in for the `categories` array identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markers, categoriesKey, found, hideFound, meta.maxZoom, iconsVersion]);
+  }, [
+    markers,
+    categoriesKey,
+    found,
+    hideFound,
+    meta.maxZoom,
+    iconsVersion,
+    shouldCluster,
+  ]);
 
   // Fly to a requested marker (search hit / external selection).
   useEffect(() => {

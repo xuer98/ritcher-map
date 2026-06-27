@@ -9,10 +9,19 @@ import { LoginForm } from "@/lib/auth/LoginForm";
 import { BrandTheme } from "@/lib/branding/BrandTheme";
 import { resolveAssetUrl, resolveIconUrl } from "@/lib/icons";
 import { regionColor } from "@/lib/map/regions";
-import { MarkerBody } from "@/lib/markdown/MarkerBody";
 import { CategoryIcon } from "@/lib/panels/CategoryIcon";
 import { CategoryPanel } from "@/lib/panels/CategoryPanel";
+import { MarkerDetail } from "@/lib/panels/MarkerDetail";
 import { useProgressSync } from "@/lib/progress/useProgressSync";
+import {
+  ChevronRightIcon,
+  DiscoveryIcon,
+  EyeIcon,
+  EyeOffIcon,
+  LayersIcon,
+  PinIcon,
+  SearchIcon,
+} from "@/lib/ui/icons";
 import type {
   CategoryResponse,
   GameResponse,
@@ -55,6 +64,9 @@ export function MapScreen({
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
+  // Side-menu disclosure state.
+  const [mapMenuOpen, setMapMenuOpen] = useState(false);
+  const [regionsOpen, setRegionsOpen] = useState(true);
   const [focus, setFocus] = useState<{
     x: number;
     y: number;
@@ -176,6 +188,13 @@ export function MapScreen({
     .filter((s) => s.status === "READY")
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const logo = resolveAssetUrl(game?.logoUrl ?? null);
+  const hasMapMenu = readyMaps.length > 1;
+  // Discovery box: found / total on this map, with a percentage.
+  const total = allMarkers?.length ?? 0;
+  const foundCount = progress.found.size;
+  const pct = total > 0 ? Math.round((foundCount / total) * 100) : 0;
+  // "Hide all" flips to "Show all" once every category is hidden.
+  const allHidden = allCatIds.length > 0 && hiddenCats.size >= allCatIds.length;
 
   return (
     <BrandTheme game={game} className="relative h-dvh w-full overflow-hidden">
@@ -194,10 +213,10 @@ export function MapScreen({
         />
       </div>
 
-      <aside className="absolute inset-y-4 left-4 z-10 flex w-70 max-w-[calc(100vw-32px)] flex-col gap-3 overflow-y-auto pr-0.5">
+      <aside className="sidebar absolute left-0 top-0 z-10">
         <Link
           href={`/${meta.gameSlug}`}
-          className="px-0.5 py-1 [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] hover:no-underline"
+          className="px-0.5 pt-0.5 hover:no-underline"
         >
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -213,43 +232,26 @@ export function MapScreen({
           )}
         </Link>
 
-        <div className="panel">
-          <div className="panel-title">{meta.name}</div>
-          {readyMaps.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
-              {readyMaps.map((s) =>
-                s.id === meta.id ? (
-                  <span
-                    key={s.id}
-                    className="rounded-full border border-brand bg-brand px-2.5 py-1 text-[13px] font-semibold text-white"
-                  >
-                    {s.name}
-                  </span>
-                ) : (
-                  <Link
-                    key={s.id}
-                    className="rounded-full border border-edge px-2.5 py-1 text-[13px] text-fg hover:border-brand hover:no-underline"
-                    href={`/${s.gameSlug}/map/${s.mapSlug}`}
-                  >
-                    {s.name}
-                  </Link>
-                )
-              )}
-            </div>
-          )}
-          <input
-            className="input"
-            type="search"
-            placeholder="Search markers…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        {/* Search */}
+        <div>
+          <div className="flex items-center gap-2.5 rounded-full bg-panel px-4 py-2.5">
+            <SearchIcon size={18} className="flex-none text-fg-dim" />
+            <input
+              className="w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-dim"
+              type="search"
+              placeholder="Search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           {search.trim() !== "" && (
-            <div className="flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto">
+            <div className="mt-1.5 flex max-h-[30vh] flex-col gap-0.5 overflow-y-auto rounded-2xl bg-panel p-1.5">
               {allMarkers === null ? (
-                <div className="text-sm text-fg-dim">Loading markers…</div>
+                <div className="px-1.5 py-1 text-sm text-fg-dim">
+                  Loading markers…
+                </div>
               ) : results.length === 0 ? (
-                <div className="text-sm text-fg-dim">No matches.</div>
+                <div className="px-1.5 py-1 text-sm text-fg-dim">No matches.</div>
               ) : (
                 results.map((m) => (
                   <button
@@ -272,133 +274,192 @@ export function MapScreen({
           )}
         </div>
 
-        <CategoryPanel
-          categories={categories}
-          counts={markerCountByCategory}
-          hidden={hiddenCats}
-          onToggle={toggleCat}
-          onSetMany={setManyHidden}
-          onShowAll={showAllCats}
-          onHideAll={hideAllCats}
-        />
+        {/* Discovery progress */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!authed) setShowLogin(true);
+          }}
+          className={`flex items-center gap-3 rounded-[18px] bg-olive px-4 py-3 text-left${
+            authed ? " cursor-default" : ""
+          }`}
+        >
+          <DiscoveryIcon size={26} className="flex-none text-lime" />
+          <span className="block min-w-0 flex-1">
+            <span className="block text-[12px] font-extrabold uppercase tracking-[1.5px] text-lime">
+              Discovery Progress
+            </span>
+            <span className="block truncate text-[13px] text-fg">
+              {authed
+                ? `${pct}% discovered`
+                : "Please log in to track your progress"}
+            </span>
+          </span>
+          <span className="flex-none text-sm font-bold tabular-nums text-fg">
+            {foundCount} / {total}
+          </span>
+        </button>
 
-        {regions.length > 0 && (
-          <div className="panel">
-            <div className="panel-title">Regions</div>
-            <div className="flex max-h-[24vh] flex-col gap-0.5 overflow-y-auto">
-              {regions.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-white/10"
-                  onClick={() =>
-                    setRegionFocus((f) => ({ id: r.id, key: (f?.key ?? 0) + 1 }))
-                  }
-                >
+        {/* Choose map */}
+        <div className="rounded-2xl bg-panel">
+          <button
+            type="button"
+            onClick={() => hasMapMenu && setMapMenuOpen((o) => !o)}
+            className={`flex w-full items-center gap-3 px-4 py-3 text-left${
+              hasMapMenu ? "" : " cursor-default"
+            }`}
+            aria-expanded={hasMapMenu ? mapMenuOpen : undefined}
+          >
+            <LayersIcon size={20} className="flex-none text-fg" />
+            <span className="block min-w-0 flex-1">
+              <span className="block text-[11px] font-bold uppercase tracking-[2px] text-fg-dim">
+                Choose map
+              </span>
+              <span className="block truncate text-[15px] font-semibold text-fg">
+                {meta.name}
+              </span>
+            </span>
+            {hasMapMenu && (
+              <ChevronRightIcon
+                size={18}
+                className={`flex-none text-fg-dim transition-transform${
+                  mapMenuOpen ? " rotate-90" : ""
+                }`}
+              />
+            )}
+          </button>
+          {hasMapMenu && mapMenuOpen && (
+            <div className="flex flex-col gap-0.5 border-t border-edge px-2 py-2">
+              {readyMaps.map((s) =>
+                s.id === meta.id ? (
                   <span
-                    aria-hidden="true"
-                    className="h-2.5 w-2.5 flex-none rounded-[2px]"
-                    style={{ background: regionColor(r.id) }}
-                  />
-                  <span className="truncate">{r.name}</span>
-                </button>
-              ))}
+                    key={s.id}
+                    className="rounded-lg bg-white/5 px-2.5 py-1.5 text-sm font-semibold text-fg"
+                  >
+                    {s.name}
+                  </span>
+                ) : (
+                  <Link
+                    key={s.id}
+                    href={`/${s.gameSlug}/map/${s.mapSlug}`}
+                    className="rounded-lg px-2.5 py-1.5 text-sm text-fg hover:bg-white/5 hover:no-underline"
+                  >
+                    {s.name}
+                  </Link>
+                )
+              )}
             </div>
-          </div>
-        )}
-
-        <div className="panel">
-          <div className="panel-title">Progress</div>
-          {authed ? (
-            <>
-              <div className="text-sm font-semibold">
-                {progress.found.size} found
-                {allMarkers && allMarkers.length > 0
-                  ? ` / ${allMarkers.length}`
-                  : ""}
-              </div>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={hideFound}
-                  onChange={(e) => setHideFound(e.target.checked)}
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  Hide found markers
-                </span>
-              </label>
-            </>
-          ) : (
-            <>
-              <div className="text-sm text-fg-dim">
-                Log in to track found markers across devices.
-              </div>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setShowLogin(true)}
-              >
-                Log in
-              </button>
-            </>
           )}
         </div>
 
-        {authed && (
-          <div className="panel mt-auto">
-            <div className="flex items-center justify-between gap-2">
-              <span className="min-w-0 truncate text-[13px] text-fg">
-                {user?.email}
-              </span>
-              <button type="button" className="btn btn-sm" onClick={logout}>
-                Log out
+        {/* Quick toggles */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => (allHidden ? showAllCats() : hideAllCats())}
+            className={`flex flex-col items-center gap-1.5 rounded-xl py-3 ${
+              allHidden ? "text-lime" : "text-fg hover:bg-white/5"
+            }`}
+          >
+            {allHidden ? <EyeIcon size={22} /> : <EyeOffIcon size={22} />}
+            <span className="text-[12px] font-bold uppercase tracking-[1.5px]">
+              {allHidden ? "Show all" : "Hide all"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setHideFound((v) => !v)}
+            className={`flex flex-col items-center gap-1.5 rounded-xl py-3 ${
+              hideFound ? "text-lime" : "text-fg hover:bg-white/5"
+            }`}
+            aria-pressed={hideFound}
+          >
+            <PinIcon size={22} />
+            <span className="text-[12px] font-bold uppercase tracking-[1.5px]">
+              Unfound only
+            </span>
+          </button>
+        </div>
+
+        <div className="h-px bg-[#26282b]" />
+
+        {/* Sections: regions + categories */}
+        <div className="flex flex-col gap-0.5">
+          {regions.length > 0 && (
+            <div className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => setRegionsOpen((o) => !o)}
+                className="section-row"
+                aria-expanded={regionsOpen}
+              >
+                <ChevronRightIcon
+                  size={13}
+                  className={`flex-none text-fg transition-transform${
+                    regionsOpen ? " rotate-90" : ""
+                  }`}
+                />
+                <span className="section-title flex-1">Map Regions</span>
               </button>
+              {regionsOpen && (
+                <div className="flex flex-col gap-0.5 pb-1 pl-6">
+                  {regions.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-white/5"
+                      onClick={() =>
+                        setRegionFocus((f) => ({
+                          id: r.id,
+                          key: (f?.key ?? 0) + 1,
+                        }))
+                      }
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 flex-none rounded-[2px]"
+                        style={{ background: regionColor(r.id) }}
+                      />
+                      <span className="truncate">{r.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
+
+          <CategoryPanel
+            categories={categories}
+            counts={markerCountByCategory}
+            hidden={hiddenCats}
+            onToggle={toggleCat}
+            onSetMany={setManyHidden}
+          />
+        </div>
+
+        {authed && (
+          <div className="mt-auto flex items-center justify-between gap-2 rounded-xl bg-panel px-3 py-2">
+            <span className="min-w-0 truncate text-[13px] text-fg">
+              {user?.email}
+            </span>
+            <button type="button" className="btn btn-sm" onClick={logout}>
+              Log out
+            </button>
           </div>
         )}
       </aside>
 
       {selected && (
-        <div className="absolute inset-y-4 right-4 z-20 flex max-h-[calc(100dvh-32px)] w-80 max-w-[calc(100vw-32px)] flex-col gap-2.5 overflow-y-auto rounded-card border border-edge bg-panel p-4 shadow-panel backdrop-blur-md">
-          <button
-            type="button"
-            className="absolute right-3 top-2.5 cursor-pointer border-0 bg-transparent text-[22px] leading-none text-fg-dim hover:text-fg"
-            aria-label="Close"
-            onClick={() => setSelectedId(null)}
-          >
-            ×
-          </button>
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-fg-dim">
-            <CategoryIcon
-              icon={categoryById.get(selected.categoryId)?.icon ?? null}
-              categoryId={selected.categoryId}
-              size={16}
-            />
-            {categoryById.get(selected.categoryId)?.name ?? "Marker"}
-          </div>
-          <h2 className="m-0 pr-6 text-lg font-bold">
-            {selected.title ?? `Marker #${selected.id}`}
-          </h2>
-          {selected.description && (
-            <MarkerBody
-              markdown={selected.description}
-              onMarkerLink={onMarkerLink}
-              resolveMarkerLabel={resolveMarkerLabel}
-            />
-          )}
-          {authed ? (
-            <label className="flex cursor-pointer items-center gap-2 border-t border-edge pt-2.5 font-semibold">
-              <input
-                type="checkbox"
-                checked={progress.isFound(selected.id)}
-                onChange={() => progress.toggle(selected.id)}
-              />
-              <span>Found</span>
-            </label>
-          ) : (
-            <div className="text-sm text-fg-dim">Log in to track progress.</div>
-          )}
-        </div>
+        <MarkerDetail
+          marker={selected}
+          category={categoryById.get(selected.categoryId)}
+          authed={authed}
+          found={progress.isFound(selected.id)}
+          onToggleFound={() => progress.toggle(selected.id)}
+          onClose={() => setSelectedId(null)}
+          onMarkerLink={onMarkerLink}
+          resolveMarkerLabel={resolveMarkerLabel}
+        />
       )}
 
       {showLogin && !authed && (

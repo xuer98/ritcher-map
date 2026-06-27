@@ -13,10 +13,10 @@ export default async function HomePage() {
       <JsonLd data={websiteJsonLd()} />
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-center text-3xl font-bold tracking-tight">
           Interactive Game Maps
         </h1>
-        <p className="mt-1 text-fg-dim">
+        <p className="mt-1 text-center text-fg-dim">
           Pick a game, open a map, and track what you have found.
         </p>
 

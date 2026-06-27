@@ -61,7 +61,7 @@ public class CategoryService {
 
     @Transactional
     public Category create(String gameSlug, String slug, String name, String icon,
-                           int sortOrder, Long parentId) {
+                           int sortOrder, Long parentId, boolean trackable) {
         requireGame(gameSlug);
         if (categories.existsByGameSlugAndSlug(gameSlug, slug)) {
             throw new ConflictException("category exists: " + slug);
@@ -70,20 +70,21 @@ public class CategoryService {
             throw NotFoundException.of("parent category", parentId);
         }
         Category c = new Category(gameSlug, slug, name);
-        c.update(name, icon, sortOrder, parentId);
+        c.update(name, icon, sortOrder, parentId, trackable);
         Category saved = categories.save(c);
         events.publishEvent(categoryChanged(CatalogChanged.Action.ACTION_CREATED));
         return saved;
     }
 
     @Transactional
-    public Category update(long id, String name, String icon, int sortOrder, Long parentId) {
+    public Category update(long id, String name, String icon, int sortOrder, Long parentId,
+                           boolean trackable) {
         Category c = categories.findById(id)
                 .orElseThrow(() -> NotFoundException.of("category", id));
         if (parentId != null && parentId.equals(id)) {
             throw new ConflictException("category cannot be its own parent");
         }
-        c.update(name, icon, sortOrder, parentId);
+        c.update(name, icon, sortOrder, parentId, trackable);
         events.publishEvent(categoryChanged(CatalogChanged.Action.ACTION_UPDATED));
         return c;
     }

@@ -29,7 +29,7 @@ public class CategoryController {
             @PathVariable String gameSlug,
             @Valid @RequestBody CategoryRequest req) {
         var saved = categories.create(gameSlug, req.slug(), req.name(), req.icon(),
-                req.sortOrder(), req.parentId());
+                req.sortOrder(), req.parentId(), trackable(req));
         return ResponseEntity
                 .created(URI.create("/api/v1/categories/" + saved.getId()))
                 .body(CategoryResponse.from(saved));
@@ -37,8 +37,14 @@ public class CategoryController {
 
     @PutMapping("/categories/{id}")
     public CategoryResponse update(@PathVariable long id, @Valid @RequestBody CategoryRequest req) {
-        var c = categories.update(id, req.name(), req.icon(), req.sortOrder(), req.parentId());
+        var c = categories.update(id, req.name(), req.icon(), req.sortOrder(),
+                req.parentId(), trackable(req));
         return CategoryResponse.from(c);
+    }
+
+    /** Trackable is nullable on the wire; omitted defaults to true. */
+    private static boolean trackable(CategoryRequest req) {
+        return req.trackable() == null || req.trackable();
     }
 
     @DeleteMapping("/categories/{id}")

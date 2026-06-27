@@ -17,6 +17,12 @@ export interface CategoryInput {
   icon?: string | null;
   sortOrder?: number;
   parentId?: number | null;
+  /**
+   * Whether the category renders by default + counts toward discovery progress.
+   * Always sent so a PUT (which replaces all fields, e.g. on reorder) never
+   * silently resets it to the server default.
+   */
+  trackable: boolean;
 }
 
 export interface MarkerInput {

@@ -61,6 +61,12 @@ export interface CategoryResponse {
   name: string;
   icon: string | null;
   sortOrder: number;
+  /**
+   * Trackable (the default) categories render on the map by default and their
+   * markers count toward discovery progress. A non-trackable category is an
+   * informational overlay: hidden by default and excluded from progress.
+   */
+  trackable: boolean;
 }
 
 /** A named polygonal area of a map (catalog /api/v1/maps/{id}/regions). */

@@ -187,7 +187,7 @@ export function MapScreen({
   const readyMaps = siblings
     .filter((s) => s.status === "READY")
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-  const isOrphan = !siblings || siblings.length == 0;
+  const isOrphan = siblings.length == 1;
   const logo = resolveAssetUrl(game?.logoUrl ?? null);
   const hasMapMenu = readyMaps.length > 1;
   // Discovery box: found / total on this map, with a percentage.

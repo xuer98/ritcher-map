@@ -30,7 +30,11 @@ export const MarkerDetail: React.FC<MarkerDetailProps> = ({
   onMarkerLink,
   resolveMarkerLabel,
 }) => (
-  <div className="absolute inset-y-4 right-4 z-20 flex max-h-[calc(100dvh-32px)] w-80 max-w-[calc(100vw-32px)] flex-col gap-2.5 overflow-y-auto rounded-card border border-edge bg-panel p-4 shadow-panel backdrop-blur-md">
+  // Mobile: a bottom sheet that takes at most half the viewport (the map stays
+  // visible/tappable above it). sm+: a floating card anchored bottom-right.
+  // Height is content-driven and capped at 50dvh so a short marker no longer
+  // stretches to fill the screen.
+  <div className="absolute inset-x-0 bottom-0 z-20 flex max-h-[50dvh] flex-col gap-2.5 overflow-y-auto rounded-t-card border border-edge bg-panel p-4 shadow-panel backdrop-blur-md sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-80 sm:max-w-[calc(100vw-32px)] sm:rounded-card">
     <button
       type="button"
       className="absolute right-3 top-2.5 cursor-pointer border-0 bg-transparent text-[22px] leading-none text-fg-dim hover:text-fg"

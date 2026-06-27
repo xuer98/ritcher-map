@@ -1,17 +1,13 @@
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { SiteHeader } from '@/components/SiteHeader';
-import { BrandTheme } from '@/lib/branding/BrandTheme';
-import { gameTitle } from '@/lib/games';
-import { resolveAssetUrl } from '@/lib/icons';
-import {
-  breadcrumbJsonLd,
-  JsonLd,
-  videoGameJsonLd,
-} from '@/lib/seo/JsonLd';
-import { fetchGame, fetchMaps } from '@/lib/server';
-import type { MapResponse } from '@/lib/types';
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { SiteHeader } from "@/components/SiteHeader";
+import { BrandTheme } from "@/lib/branding/BrandTheme";
+import { gameTitle } from "@/lib/games";
+import { resolveAssetUrl } from "@/lib/icons";
+import { breadcrumbJsonLd, JsonLd, videoGameJsonLd } from "@/lib/seo/JsonLd";
+import { fetchGame, fetchMaps } from "@/lib/server";
+import type { MapResponse } from "@/lib/types";
 
 interface Props {
   params: Promise<{ gameSlug: string }>;
@@ -54,11 +50,11 @@ export default async function GamePage({ params }: Props) {
   const logo = resolveAssetUrl(game?.logoUrl ?? null);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col">
+    <div className="flex min-h-dvh flex-col">
       <JsonLd
         data={[
           breadcrumbJsonLd([
-            { name: 'All games', path: '/' },
+            { name: "All games", path: "/" },
             { name: title, path: `/${gameSlug}` },
           ]),
           videoGameJsonLd({
@@ -70,7 +66,10 @@ export default async function GamePage({ params }: Props) {
         ]}
       />
       <SiteHeader />
-      <BrandTheme game={game} className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
+      <BrandTheme
+        game={game}
+        className="mx-auto w-full max-w-6xl flex-1 px-6 py-6"
+      >
         <nav className="flex items-center gap-1.5 text-sm text-fg-dim">
           <Link href="/">All games</Link>
           <span aria-hidden="true">/</span>
@@ -88,11 +87,14 @@ export default async function GamePage({ params }: Props) {
               />
               <span
                 aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/20"
+                className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/20"
               />
             </>
           )}
-          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-brand" />
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-1 bg-brand"
+          />
           <div className="relative z-10">
             {logo ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -108,9 +110,9 @@ export default async function GamePage({ params }: Props) {
         </section>
 
         <h2 className="panel-title mt-6 mb-3">Maps</h2>
-        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
+        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {maps.map((m) =>
-            m.status === 'READY' ? (
+            m.status === "READY" ? (
               <Link
                 key={m.id}
                 href={`/${m.gameSlug}/map/${m.mapSlug}`}
@@ -118,11 +120,6 @@ export default async function GamePage({ params }: Props) {
               >
                 <span className="font-semibold">{m.name}</span>
                 <span className={badgeClass(m)}>{m.status}</span>
-                {m.width !== null && m.height !== null && (
-                  <span className="text-xs text-fg-dim">
-                    {m.width} × {m.height}px · zoom {m.minZoom ?? 0}–{m.maxZoom}
-                  </span>
-                )}
               </Link>
             ) : (
               <div
@@ -133,7 +130,7 @@ export default async function GamePage({ params }: Props) {
                 <span className={badgeClass(m)}>{m.status}</span>
                 <span className="text-xs text-fg-dim">Not published yet</span>
               </div>
-            ),
+            )
           )}
         </div>
       </BrandTheme>

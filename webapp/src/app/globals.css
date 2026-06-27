@@ -6,16 +6,21 @@
    <BrandTheme> sets per game, so any subtree retints by overriding them.
 --------------------------------------------------------------------------- */
 @theme {
-  --color-bg: #0f1115;
-  --color-panel: rgba(24, 27, 33, 0.92);
+  --color-bg: #111214;
+  --color-panel: #2b2d31;
   --color-edge: rgba(255, 255, 255, 0.08);
-  --color-fg: #e6e8eb;
-  --color-fg-dim: #9aa0a6;
+  --color-fg: #d8d8da;
+  --color-fg-dim: #a9abad;
   --color-accent: #3b82f6;
   --color-accent-hover: #2f6fe0;
   --color-brand: #3b82f6;
   --color-danger: #ef4444;
   --color-success: #22c55e;
+
+  /* Discovery-progress box — fixed olive/lime, not brand-tinted (matches the
+     Figma side-menu import; mirrors how MapGenie's progress box is always green). */
+  --color-olive: #343817;
+  --color-lime: #eefb3d;
 
   --radius-card: 10px;
   --shadow-panel: 0 6px 24px rgba(0, 0, 0, 0.45);
@@ -67,6 +72,26 @@
   }
   .panel-title {
     @apply text-[11px] font-bold uppercase tracking-wider text-fg-dim;
+  }
+
+  /* ---- Side menu (Figma import) ---------------------------------------- */
+  /* The whole left rail is one solid dark column; cards/sections sit on it. */
+  .sidebar {
+    @apply flex h-dvh w-[332px] max-w-[88vw] flex-col gap-3 overflow-y-auto
+      border-r border-[#26282b] bg-bg px-3.5 pb-4 pt-3.5;
+  }
+  /* A rounded card on the rail (search, choose-map, etc.). */
+  .side-card {
+    @apply rounded-2xl bg-panel px-3.5 py-3;
+  }
+  /* Letter-spaced uppercase section header label. */
+  .section-title {
+    @apply text-[13px] font-bold uppercase tracking-[1.5px] text-fg;
+  }
+  /* A bare, full-width section header row (regions / category groups). */
+  .section-row {
+    @apply flex w-full items-center gap-2.5 rounded-lg px-1 py-2 text-left
+      hover:bg-white/5;
   }
 
   .btn {

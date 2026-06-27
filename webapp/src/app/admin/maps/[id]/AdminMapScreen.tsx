@@ -301,6 +301,40 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
     }
   };
 
+  // Dragging a pin on the map persists its new position immediately (using the
+  // marker's currently-saved title/category/description). If that marker is
+  // open in the editor, sync its coord fields so a follow-up Save stays correct.
+  const onMarkerDragEnd = useCallback(
+    async (id: number, p: { x: number; y: number }) => {
+      const m = markerById.get(id);
+      if (!m) return;
+      const x = Number(p.x.toFixed(1));
+      const y = Number(p.y.toFixed(1));
+      const editingThis =
+        selection?.kind === 'edit' && selection.marker.id === id;
+      try {
+        await updateMarker(id, {
+          categoryId: m.categoryId,
+          x,
+          y,
+          title: m.title,
+          description: m.description,
+        });
+        reloadMarkers();
+        if (editingThis) {
+          setMX(String(x));
+          setMY(String(y));
+          setSelection({ kind: 'edit', marker: { ...m, x, y } });
+        }
+        notify('success', 'Marker moved.');
+      } catch (err) {
+        notify('error', errMsg(err, 'move failed'));
+        reloadMarkers(); // snap the pin back to its persisted position
+      }
+    },
+    [markerById, selection, reloadMarkers, notify],
+  );
+
   // --- bulk import -----------------------------------------------------------
   const [bulkText, setBulkText] = useState('');
 
@@ -442,7 +476,7 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                 <div className="text-xs text-fg-dim px-1 pt-0.5 pb-2">
                   {regionDraw
                     ? 'Click to add polygon points · finish in the Regions panel →'
-                    : 'Click the map to place a marker · click a marker to edit it'}
+                    : 'Click the map to place a marker · click a marker to edit it · drag a marker to move it'}
                 </div>
                 <div className="relative h-[62vh] overflow-hidden rounded-md">
                   <MapView
@@ -461,6 +495,7 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                         selectNew(p);
                       }
                     }}
+                    onMarkerDragEnd={onMarkerDragEnd}
                     categoryIcons={categoryIcons}
                     regions={regions}
                     drawing={regionDraw}

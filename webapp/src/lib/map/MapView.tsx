@@ -6,6 +6,7 @@ import type {
   GeoJSONSource,
   MapGeoJSONFeature,
   MapLayerMouseEvent,
+  MapMouseEvent,
   Map as MapLibreMap,
   StyleSpecification,
 } from "maplibre-gl";
@@ -60,6 +61,13 @@ export interface MapViewProps {
    * uses this for click-to-place marker authoring.
    */
   onMapClick?: (point: { x: number; y: number }) => void;
+  /**
+   * Dragging a marker pin reports its new pixel-space position on release.
+   * Opt-in: when omitted (the player view) markers are not draggable. A plain
+   * click is distinguished from a drag by a small movement threshold, so it
+   * still fires `onMarkerClick`.
+   */
+  onMarkerDragEnd?: (markerId: number, point: { x: number; y: number }) => void;
   /**
    * categoryId -> resolved icon URL. Markers in these categories render as the
    * icon image once it loads; everything else stays a colored circle.
@@ -246,6 +254,7 @@ export const MapView: React.FC<MapViewProps> = ({
   onMarkerClick,
   focus = null,
   onMapClick,
+  onMarkerDragEnd,
   categoryIcons,
   regions,
   regionFocus = null,
@@ -272,6 +281,14 @@ export const MapView: React.FC<MapViewProps> = ({
   onClickRef.current = onMarkerClick;
   const onMapClickRef = useRef(onMapClick);
   onMapClickRef.current = onMapClick;
+  const onMarkerDragEndRef = useRef(onMarkerDragEnd);
+  onMarkerDragEndRef.current = onMarkerDragEnd;
+  // Latest rendered marker FeatureCollection, so the once-bound drag handler can
+  // move a single feature in place without rebuilding it from the prop.
+  const markerFcRef =
+    useRef<GeoJSON.FeatureCollection<GeoJSON.Point, MarkerFeatureProps>>(
+      EMPTY_FC
+    );
   // Latest regions for the once-bound region click handler to read.
   const regionsRef = useRef<RegionResponse[]>(regions ?? []);
   regionsRef.current = regions ?? [];
@@ -369,6 +386,70 @@ export const MapView: React.FC<MapViewProps> = ({
       popup.remove();
     };
 
+    // --- marker dragging (admin authoring) ---------------------------------
+    // Press a marker and drag to reposition it; the new pixel coords are
+    // reported on release via onMarkerDragEnd. Enabled only when that callback
+    // is set. A movement threshold separates a drag from a plain click, so
+    // clicking a marker still selects it (onMarkerClick) rather than "moving"
+    // it onto itself. preventDefault() on mousedown stops the map from panning.
+    let dragId: number | null = null;
+    let dragMoved = false;
+    let dragStart: { x: number; y: number } | null = null;
+
+    const onDragMove = (e: MapMouseEvent): void => {
+      if (dragId === null) return;
+      if (
+        !dragMoved &&
+        dragStart &&
+        Math.hypot(e.point.x - dragStart.x, e.point.y - dragStart.y) < 3
+      ) {
+        return; // below threshold — still a click, not a drag yet
+      }
+      dragMoved = true;
+      map.getCanvas().style.cursor = "grabbing";
+      popup.remove();
+      const feat = markerFcRef.current.features.find(
+        (f) => (f.properties as { id?: number }).id === dragId
+      );
+      if (feat) {
+        feat.geometry.coordinates = [e.lngLat.lng, e.lngLat.lat];
+        const src = map.getSource(MARKER_SOURCE_ID) as GeoJSONSource | undefined;
+        src?.setData(markerFcRef.current);
+      }
+    };
+
+    const onDragUp = (e: MapMouseEvent): void => {
+      map.off("mousemove", onDragMove);
+      const id = dragId;
+      const moved = dragMoved;
+      dragId = null;
+      dragMoved = false;
+      dragStart = null;
+      map.getCanvas().style.cursor = "";
+      if (id !== null && moved && onMarkerDragEndRef.current) {
+        const px = lngLatToPixel(e.lngLat.lng, e.lngLat.lat, maxZoom);
+        onMarkerDragEndRef.current(id, { x: px.x, y: px.y });
+      }
+    };
+
+    const onMarkerDown = (e: MapLayerMouseEvent): void => {
+      if (!onMarkerDragEndRef.current || drawingRef.current) return;
+      const feature = e.features?.[0];
+      if (!feature) return;
+      const propId = (feature.properties as { id?: number }).id;
+      const id =
+        propId !== undefined && propId !== null
+          ? Number(propId)
+          : Number(feature.id);
+      if (Number.isNaN(id)) return;
+      e.preventDefault(); // suppress the default drag-pan for this gesture
+      dragId = id;
+      dragMoved = false;
+      dragStart = { x: e.point.x, y: e.point.y };
+      map.on("mousemove", onDragMove);
+      map.once("mouseup", onDragUp);
+    };
+
     // Background clicks (not on a marker) report pixel-space coordinates.
     // The marker layer's own click handler still fires for marker hits; the
     // queryRenderedFeatures guard keeps this one from double-reporting them.
@@ -423,6 +504,7 @@ export const MapView: React.FC<MapViewProps> = ({
       map.on("click", layer, onClick);
       map.on("mouseenter", layer, onEnter);
       map.on("mouseleave", layer, onLeave);
+      map.on("mousedown", layer, onMarkerDown);
     }
     // Cluster circle: click zooms in; cursor turns to a pointer on hover.
     map.on("click", CLUSTER_LAYER_ID, onClusterClick);
@@ -445,7 +527,9 @@ export const MapView: React.FC<MapViewProps> = ({
         map.off("click", layer, onClick);
         map.off("mouseenter", layer, onEnter);
         map.off("mouseleave", layer, onLeave);
+        map.off("mousedown", layer, onMarkerDown);
       }
+      map.off("mousemove", onDragMove); // in case teardown lands mid-drag
       popup.remove();
       mapRef.current = null;
       setMapInstance(null);
@@ -566,9 +650,14 @@ export const MapView: React.FC<MapViewProps> = ({
       let list = markers;
       if (catSet) list = list.filter((m) => catSet.has(m.categoryId));
       if (hideFound) list = list.filter((m) => !found.has(m.id));
-      src.setData(
-        markersToGeoJSON(list, meta.maxZoom ?? 0, found, loadedIconCats.current)
+      const fc = markersToGeoJSON(
+        list,
+        meta.maxZoom ?? 0,
+        found,
+        loadedIconCats.current
       );
+      markerFcRef.current = fc; // so the drag handler can move a feature in place
+      src.setData(fc);
     };
 
     if (map.isStyleLoaded()) {

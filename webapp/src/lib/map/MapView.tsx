@@ -12,7 +12,7 @@ import type {
 
 import { tileTemplateUrl } from "../api/client";
 import type { CatalogMarker } from "../api/maps";
-import { SERVER_CLUSTER_LIMIT, TILE_SIZE } from "../config";
+import { TILE_SIZE } from "../config";
 import { categoryIconSpriteId } from "../icons";
 import type { MapResponse, RegionResponse } from "../types";
 import { imageBounds, lngLatToPixel, pixelToLngLat } from "./crs";
@@ -212,10 +212,10 @@ function buildStyle(meta: MapResponse): StyleSpecification {
         bounds,
       },
       [MARKER_SOURCE_ID]: {
-        // Created non-clustered; the marker effect recreates it WITH clustering
-        // only when the map has more than SERVER_CLUSTER_LIMIT markers. Sparse
-        // maps render every marker individually (clustering a handful across a
-        // huge map would just hide them in a bubble at the fit-to-image zoom).
+        // Non-clustered: every marker renders individually. MapLibre's GeoJSON
+        // clustering is deliberately disabled because supercluster mis-tiles our
+        // pixel CRS (markers project into the extreme NW corner of Web Mercator);
+        // see the `shouldCluster` note in the marker effect below.
         type: "geojson",
         data: EMPTY_FC,
       },
@@ -458,10 +458,17 @@ export const MapView: React.FC<MapViewProps> = ({
   // on every parent render, but its contents rarely change).
   const categoriesKey = categories ? categories.join(",") : "all";
 
-  // Cluster only when a map is genuinely dense — matches the old server's
-  // SERVER_CLUSTER_LIMIT behavior. Clustering a handful of markers across a huge
-  // map would collapse them into a single bubble at the fit-to-image zoom.
-  const shouldCluster = markers.length > SERVER_CLUSTER_LIMIT;
+  // Clustering is DISABLED. MapLibre's GeoJSON clustering (supercluster) runs in
+  // geographic Web-Mercator space, but our pixel CRS projects every marker into a
+  // tiny sliver at the extreme NW corner of Mercator (lng≈-180, lat≈85°).
+  // Supercluster mis-tiles that degenerate region, so a clustered source renders
+  // nothing at the fit-to-image zoom — which silently hid all ~1900 of Pharloom's
+  // markers (the only map dense enough to cross the old cluster threshold).
+  // Individual rendering is correct at every zoom; density is managed by category
+  // filtering, not clustering. The cluster layers/handler below stay inert (no
+  // feature ever carries point_count) so clustering can be restored if the CRS
+  // ever changes to a non-degenerate projection.
+  const shouldCluster = false;
 
   // Sprites live on a specific map instance; drop the loaded-set when the map
   // is (re)created so we don't tag markers with sprites the new map lacks.

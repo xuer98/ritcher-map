@@ -187,6 +187,7 @@ export function MapScreen({
   const readyMaps = siblings
     .filter((s) => s.status === "READY")
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  const isOrphan = !siblings || siblings.length == 0;
   const logo = resolveAssetUrl(game?.logoUrl ?? null);
   const hasMapMenu = readyMaps.length > 1;
   // Discovery box: found / total on this map, with a percentage.
@@ -251,7 +252,9 @@ export function MapScreen({
                   Loading markers…
                 </div>
               ) : results.length === 0 ? (
-                <div className="px-1.5 py-1 text-sm text-fg-dim">No matches.</div>
+                <div className="px-1.5 py-1 text-sm text-fg-dim">
+                  No matches.
+                </div>
               ) : (
                 results.map((m) => (
                   <button
@@ -301,56 +304,58 @@ export function MapScreen({
         </button>
 
         {/* Choose map */}
-        <div className="rounded-2xl bg-panel">
-          <button
-            type="button"
-            onClick={() => hasMapMenu && setMapMenuOpen((o) => !o)}
-            className={`flex w-full items-center gap-3 px-4 py-3 text-left${
-              hasMapMenu ? "" : " cursor-default"
-            }`}
-            aria-expanded={hasMapMenu ? mapMenuOpen : undefined}
-          >
-            <LayersIcon size={20} className="flex-none text-fg" />
-            <span className="block min-w-0 flex-1">
-              <span className="block text-[11px] font-bold uppercase tracking-[2px] text-fg-dim">
-                Choose map
+        {!isOrphan && (
+          <div className="rounded-2xl bg-panel">
+            <button
+              type="button"
+              onClick={() => hasMapMenu && setMapMenuOpen((o) => !o)}
+              className={`flex w-full items-center gap-3 px-4 py-3 text-left${
+                hasMapMenu ? "" : " cursor-default"
+              }`}
+              aria-expanded={hasMapMenu ? mapMenuOpen : undefined}
+            >
+              <LayersIcon size={20} className="flex-none text-fg" />
+              <span className="block min-w-0 flex-1">
+                <span className="block text-[11px] font-bold uppercase tracking-[2px] text-fg-dim">
+                  Choose map
+                </span>
+                <span className="block truncate text-[15px] font-semibold text-fg">
+                  {meta.name}
+                </span>
               </span>
-              <span className="block truncate text-[15px] font-semibold text-fg">
-                {meta.name}
-              </span>
-            </span>
-            {hasMapMenu && (
-              <ChevronRightIcon
-                size={18}
-                className={`flex-none text-fg-dim transition-transform${
-                  mapMenuOpen ? " rotate-90" : ""
-                }`}
-              />
-            )}
-          </button>
-          {hasMapMenu && mapMenuOpen && (
-            <div className="flex flex-col gap-0.5 border-t border-edge px-2 py-2">
-              {readyMaps.map((s) =>
-                s.id === meta.id ? (
-                  <span
-                    key={s.id}
-                    className="rounded-lg bg-white/5 px-2.5 py-1.5 text-sm font-semibold text-fg"
-                  >
-                    {s.name}
-                  </span>
-                ) : (
-                  <Link
-                    key={s.id}
-                    href={`/${s.gameSlug}/map/${s.mapSlug}`}
-                    className="rounded-lg px-2.5 py-1.5 text-sm text-fg hover:bg-white/5 hover:no-underline"
-                  >
-                    {s.name}
-                  </Link>
-                )
+              {hasMapMenu && (
+                <ChevronRightIcon
+                  size={18}
+                  className={`flex-none text-fg-dim transition-transform${
+                    mapMenuOpen ? " rotate-90" : ""
+                  }`}
+                />
               )}
-            </div>
-          )}
-        </div>
+            </button>
+            {hasMapMenu && mapMenuOpen && (
+              <div className="flex flex-col gap-0.5 border-t border-edge px-2 py-2">
+                {readyMaps.map((s) =>
+                  s.id === meta.id ? (
+                    <span
+                      key={s.id}
+                      className="rounded-lg bg-white/5 px-2.5 py-1.5 text-sm font-semibold text-fg"
+                    >
+                      {s.name}
+                    </span>
+                  ) : (
+                    <Link
+                      key={s.id}
+                      href={`/${s.gameSlug}/map/${s.mapSlug}`}
+                      className="rounded-lg px-2.5 py-1.5 text-sm text-fg hover:bg-white/5 hover:no-underline"
+                    >
+                      {s.name}
+                    </Link>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quick toggles */}
         <div className="grid grid-cols-2 gap-2">

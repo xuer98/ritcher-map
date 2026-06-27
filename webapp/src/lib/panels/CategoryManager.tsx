@@ -46,6 +46,7 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
   const [icon, setIcon] = useState('');
   const [sort, setSort] = useState('0');
   const [parent, setParent] = useState('');
+  const [trackable, setTrackable] = useState(true);
   const [iconUploading, setIconUploading] = useState(false);
 
   // Group ids whose children are hidden in the list; groups start expanded.
@@ -161,6 +162,7 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
             icon: cat.icon,
             sortOrder,
             parentId: cat.parentId,
+            trackable: cat.trackable,
           }),
         ),
       );
@@ -201,6 +203,7 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
     setIcon('');
     setSort('0');
     setParent('');
+    setTrackable(true);
   };
 
   const formLoad = (c: CategoryResponse) => {
@@ -210,6 +213,7 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
     setIcon(c.icon ?? '');
     setSort(String(c.sortOrder));
     setParent(c.parentId === null ? '' : String(c.parentId));
+    setTrackable(c.trackable !== false);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -221,6 +225,7 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
       icon: icon.trim() === '' ? null : icon.trim(),
       sortOrder: Number(sort) || 0,
       parentId: parent === '' ? null : Number(parent),
+      trackable,
     };
     const wasEditing = editing;
     try {
@@ -481,6 +486,22 @@ export function CategoryManager({ gameSlug }: { gameSlug: string }) {
               ))}
           </select>
         </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={trackable}
+            onChange={(e) => setTrackable(e.target.checked)}
+          />
+          <span>
+            <span className="font-medium">Trackable</span>
+            <span className="block text-[13px] text-fg-dim">
+              Shown on the map by default and counted toward discovery progress.
+              Uncheck for informational overlays — hidden by default and not
+              counted.
+            </span>
+          </span>
+        </label>
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn btn-primary" type="submit">
             {editing ? 'Save' : 'Add category'}

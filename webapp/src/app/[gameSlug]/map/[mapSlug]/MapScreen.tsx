@@ -59,7 +59,16 @@ export function MapScreen({
   const progress = useProgressSync(meta.id, authed);
 
   // Category ids that are HIDDEN; an empty set means everything is shown.
-  const [hiddenCats, setHiddenCats] = useState<Set<number>>(new Set());
+  // Non-trackable categories (informational overlays) start hidden — the player
+  // can still toggle them on from the category panel.
+  // `=== false` (not `!c.trackable`) so a category from an older catalog that
+  // omits the field is treated as trackable (the default), not hidden.
+  const [hiddenCats, setHiddenCats] = useState<Set<number>>(
+    () =>
+      new Set(
+        categories.filter((c) => c.trackable === false).map((c) => c.id),
+      ),
+  );
   const [hideFound, setHideFound] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -111,6 +120,16 @@ export function MapScreen({
   }, [allMarkers]);
   const categoryById = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
+    [categories]
+  );
+  // Category ids that count toward discovery progress (trackable ones). Markers
+  // in non-trackable categories are excluded from both the total and the found
+  // tally below.
+  const trackableCatIds = useMemo(
+    () =>
+      new Set(
+        categories.filter((c) => c.trackable !== false).map((c) => c.id)
+      ),
     [categories]
   );
   // categoryId -> resolved icon URL, for the map's symbol layer. Only
@@ -190,9 +209,16 @@ export function MapScreen({
   const isOrphan = siblings.length == 1;
   const logo = resolveAssetUrl(game?.logoUrl ?? null);
   const hasMapMenu = readyMaps.length > 1;
-  // Discovery box: found / total on this map, with a percentage.
-  const total = allMarkers?.length ?? 0;
-  const foundCount = progress.found.size;
+  // Discovery box: found / total on this map, counting only markers in
+  // trackable categories (non-trackable overlays don't affect completion).
+  const countableMarkers = (allMarkers ?? []).filter((m) =>
+    trackableCatIds.has(m.categoryId)
+  );
+  const total = countableMarkers.length;
+  const foundCount = countableMarkers.reduce(
+    (n, m) => (progress.found.has(m.id) ? n + 1 : n),
+    0
+  );
   const pct = total > 0 ? Math.round((foundCount / total) * 100) : 0;
   // "Hide all" flips to "Show all" once every category is hidden.
   const allHidden = allCatIds.length > 0 && hiddenCats.size >= allCatIds.length;

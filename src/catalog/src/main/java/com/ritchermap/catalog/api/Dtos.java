@@ -142,17 +142,20 @@ public final class Dtos {
             @NotBlank @Size(max = 200) String name,
             @Size(max = 200) String icon,
             int sortOrder,
-            Long parentId
+            Long parentId,
+            // Nullable on the wire: omitted -> defaults to true (a new category is
+            // trackable unless the editor opts out). See CategoryController.
+            Boolean trackable
     ) {}
 
     public record CategoryResponse(
             long id, String gameSlug, Long parentId,
-            String slug, String name, String icon, int sortOrder
+            String slug, String name, String icon, int sortOrder, boolean trackable
     ) {
         public static CategoryResponse from(Category c) {
             return new CategoryResponse(
                     c.getId(), c.getGameSlug(), c.getParentId(),
-                    c.getSlug(), c.getName(), c.getIcon(), c.getSortOrder()
+                    c.getSlug(), c.getName(), c.getIcon(), c.getSortOrder(), c.isTrackable()
             );
         }
     }

@@ -37,6 +37,14 @@ public class Category {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 0;
 
+    /**
+     * Trackable categories (the default) render on the map by default and their
+     * markers count toward discovery progress. A non-trackable category is an
+     * informational overlay: hidden by default and excluded from progress.
+     */
+    @Column(nullable = false)
+    private boolean trackable = true;
+
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private Instant createdAt;
 
@@ -58,13 +66,15 @@ public class Category {
     public String getName() { return name; }
     public String getIcon() { return icon; }
     public int getSortOrder() { return sortOrder; }
+    public boolean isTrackable() { return trackable; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
-    public void update(String name, String icon, int sortOrder, Long parentId) {
+    public void update(String name, String icon, int sortOrder, Long parentId, boolean trackable) {
         this.name = name;
         this.icon = icon;
         this.sortOrder = sortOrder;
         this.parentId = parentId;
+        this.trackable = trackable;
     }
 }

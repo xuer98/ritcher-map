@@ -40,6 +40,14 @@ import {
   DRAFT_SOURCE_ID,
   draftToGeoJSON,
 } from "./regionDraft";
+import {
+  buildCustomMarkerLayers,
+  CUSTOM_MARKER_LAYER_ID,
+  CUSTOM_MARKER_LAYER_IDS,
+  CUSTOM_MARKER_SOURCE_ID,
+  customMarkersToGeoJSON,
+} from "./customMarkers";
+import type { CustomMarker } from "../api/customMarkers";
 
 export interface MapViewProps {
   meta: MapResponse;
@@ -88,6 +96,20 @@ export interface MapViewProps {
    * everything. `null` removes the draft overlay; `[]` shows an (empty) draft.
    */
   draftPolygon?: [number, number][] | null;
+  /**
+   * The signed-in user's custom markers (already filtered to the visible ones).
+   * Rendered as a distinct layer above the catalog markers.
+   */
+  customMarkers?: CustomMarker[];
+  /** Click a custom marker — opens its editor. Ids are UUID strings. */
+  onCustomMarkerClick?: (id: string) => void;
+  /** Drag a custom marker; reports its new pixel-space position on release. */
+  onCustomMarkerDragEnd?: (id: string, point: { x: number; y: number }) => void;
+  /**
+   * Placement mode: the next bare-map click reports a point via `onMapClick`
+   * (the player "add custom marker" flow). Shows a crosshair cursor while on.
+   */
+  placing?: boolean;
 }
 
 /** Both marker layers are clickable / hoverable. */
@@ -272,6 +294,10 @@ export const MapView: React.FC<MapViewProps> = ({
   regionFocus = null,
   drawing = false,
   draftPolygon = null,
+  customMarkers,
+  onCustomMarkerClick,
+  onCustomMarkerDragEnd,
+  placing = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -306,9 +332,23 @@ export const MapView: React.FC<MapViewProps> = ({
   // Latest regions for the once-bound region click handler to read.
   const regionsRef = useRef<RegionResponse[]>(regions ?? []);
   regionsRef.current = regions ?? [];
+  // Custom-marker callbacks + the latest rendered FeatureCollection, so the
+  // once-bound click/drag handlers stay current without rebinding.
+  const onCustomClickRef = useRef(onCustomMarkerClick);
+  onCustomClickRef.current = onCustomMarkerClick;
+  const onCustomDragEndRef = useRef(onCustomMarkerDragEnd);
+  onCustomDragEndRef.current = onCustomMarkerDragEnd;
+  const customFcRef = useRef<GeoJSON.FeatureCollection<GeoJSON.Point>>({
+    type: "FeatureCollection",
+    features: [],
+  });
   // Latest drawing flag for the once-bound click handlers to read.
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
+  // Latest placing flag, so hover/drag handlers restore the crosshair (not the
+  // default cursor) when they reset while placement mode is armed.
+  const placingRef = useRef(placing);
+  placingRef.current = placing;
 
   const ready = isReady(meta);
 
@@ -396,7 +436,7 @@ export const MapView: React.FC<MapViewProps> = ({
     };
 
     const onLeave = (): void => {
-      map.getCanvas().style.cursor = "";
+      map.getCanvas().style.cursor = placingRef.current ? "crosshair" : "";
       popup.remove();
     };
 
@@ -439,7 +479,7 @@ export const MapView: React.FC<MapViewProps> = ({
       dragId = null;
       dragMoved = false;
       dragStart = null;
-      map.getCanvas().style.cursor = "";
+      map.getCanvas().style.cursor = placingRef.current ? "crosshair" : "";
       if (id !== null && moved && onMarkerDragEndRef.current) {
         const px = lngLatToPixel(e.lngLat.lng, e.lngLat.lat, maxZoom);
         onMarkerDragEndRef.current(id, { x: px.x, y: px.y });
@@ -464,6 +504,69 @@ export const MapView: React.FC<MapViewProps> = ({
       map.once("mouseup", onDragUp);
     };
 
+    // --- custom markers (player "My Markers") ------------------------------
+    // Click selects (opens the editor); press-and-drag repositions. Ids are
+    // UUID strings, read from properties.id (never Number()-coerced).
+    const onCustomClick = (e: MapLayerMouseEvent): void => {
+      if (drawingRef.current) return;
+      const id = (e.features?.[0]?.properties as { id?: string } | undefined)?.id;
+      if (typeof id === "string" && id.length > 0) onCustomClickRef.current?.(id);
+    };
+
+    let cDragId: string | null = null;
+    let cDragMoved = false;
+    let cDragStart: { x: number; y: number } | null = null;
+
+    const onCustomDragMove = (e: MapMouseEvent): void => {
+      if (cDragId === null) return;
+      if (
+        !cDragMoved &&
+        cDragStart &&
+        Math.hypot(e.point.x - cDragStart.x, e.point.y - cDragStart.y) < 3
+      ) {
+        return; // below threshold — still a click
+      }
+      cDragMoved = true;
+      map.getCanvas().style.cursor = "grabbing";
+      popup.remove();
+      const feat = customFcRef.current.features.find(
+        (f) => (f.properties as { id?: string }).id === cDragId
+      );
+      if (feat) {
+        feat.geometry.coordinates = [e.lngLat.lng, e.lngLat.lat];
+        const src = map.getSource(CUSTOM_MARKER_SOURCE_ID) as
+          | GeoJSONSource
+          | undefined;
+        src?.setData(customFcRef.current);
+      }
+    };
+
+    const onCustomDragUp = (e: MapMouseEvent): void => {
+      map.off("mousemove", onCustomDragMove);
+      const id = cDragId;
+      const moved = cDragMoved;
+      cDragId = null;
+      cDragMoved = false;
+      cDragStart = null;
+      map.getCanvas().style.cursor = placingRef.current ? "crosshair" : "";
+      if (id !== null && moved && onCustomDragEndRef.current) {
+        const px = lngLatToPixel(e.lngLat.lng, e.lngLat.lat, maxZoom);
+        onCustomDragEndRef.current(id, { x: px.x, y: px.y });
+      }
+    };
+
+    const onCustomDown = (e: MapLayerMouseEvent): void => {
+      if (!onCustomDragEndRef.current || drawingRef.current) return;
+      const id = (e.features?.[0]?.properties as { id?: string } | undefined)?.id;
+      if (typeof id !== "string" || id.length === 0) return;
+      e.preventDefault();
+      cDragId = id;
+      cDragMoved = false;
+      cDragStart = { x: e.point.x, y: e.point.y };
+      map.on("mousemove", onCustomDragMove);
+      map.once("mouseup", onCustomDragUp);
+    };
+
     // Background clicks (not on a marker) report pixel-space coordinates.
     // The marker layer's own click handler still fires for marker hits; the
     // queryRenderedFeatures guard keeps this one from double-reporting them.
@@ -483,6 +586,7 @@ export const MapView: React.FC<MapViewProps> = ({
         ...MARKER_INTERACTIVE_LAYERS,
         CLUSTER_LAYER_ID,
         REGION_FILL_LAYER_ID,
+        CUSTOM_MARKER_LAYER_ID,
       ];
       const present = guard.filter((l) => map.getLayer(l));
       const hits = present.length
@@ -527,10 +631,21 @@ export const MapView: React.FC<MapViewProps> = ({
     map.on("click", REGION_FILL_LAYER_ID, onRegionClick);
     map.on("mouseenter", REGION_FILL_LAYER_ID, onRegionEnter);
     map.on("mouseleave", REGION_FILL_LAYER_ID, onRegionLeave);
+    // Custom markers (layer added lazily in its own effect; MapLibre delivers
+    // these layer-scoped handlers once the layer exists).
+    map.on("click", CUSTOM_MARKER_LAYER_ID, onCustomClick);
+    map.on("mouseenter", CUSTOM_MARKER_LAYER_ID, onEnter);
+    map.on("mouseleave", CUSTOM_MARKER_LAYER_ID, onLeave);
+    map.on("mousedown", CUSTOM_MARKER_LAYER_ID, onCustomDown);
     map.on("click", onBgClick);
 
     return () => {
       map.off("click", onBgClick);
+      map.off("click", CUSTOM_MARKER_LAYER_ID, onCustomClick);
+      map.off("mouseenter", CUSTOM_MARKER_LAYER_ID, onEnter);
+      map.off("mouseleave", CUSTOM_MARKER_LAYER_ID, onLeave);
+      map.off("mousedown", CUSTOM_MARKER_LAYER_ID, onCustomDown);
+      map.off("mousemove", onCustomDragMove); // in case teardown lands mid-drag
       map.off("click", REGION_FILL_LAYER_ID, onRegionClick);
       map.off("mouseenter", REGION_FILL_LAYER_ID, onRegionEnter);
       map.off("mouseleave", REGION_FILL_LAYER_ID, onRegionLeave);
@@ -778,6 +893,48 @@ export const MapView: React.FC<MapViewProps> = ({
       map.off("load", apply);
     };
   }, [mapInstance, draftPolygon, meta.maxZoom]);
+
+  // Custom markers (player "My Markers"): rebuild the source + layers ABOVE the
+  // catalog markers on change. Low-cardinality (≤200/map), so a full rebuild is
+  // cheap — mirrors the region overlay. The drag handler mutates the source in
+  // place via customFcRef; this re-seeds it from the latest prop.
+  useEffect(() => {
+    const map = mapInstance;
+    if (!map) return;
+
+    const apply = (): void => {
+      for (const id of CUSTOM_MARKER_LAYER_IDS) {
+        if (map.getLayer(id)) map.removeLayer(id);
+      }
+      if (map.getSource(CUSTOM_MARKER_SOURCE_ID)) {
+        map.removeSource(CUSTOM_MARKER_SOURCE_ID);
+      }
+      const fc = customMarkersToGeoJSON(customMarkers ?? [], meta.maxZoom ?? 0);
+      customFcRef.current = fc;
+      map.addSource(CUSTOM_MARKER_SOURCE_ID, { type: "geojson", data: fc });
+      for (const layer of buildCustomMarkerLayers()) map.addLayer(layer); // on top
+    };
+
+    if (map.isStyleLoaded()) {
+      apply();
+    } else {
+      // Same as the catalog-marker effect: `load` may already have fired by the
+      // time this runs, so also hook `idle` (re-fires on settle) to be safe.
+      map.once("load", apply);
+      map.once("idle", apply);
+    }
+    return () => {
+      map.off("load", apply);
+      map.off("idle", apply);
+    };
+  }, [mapInstance, customMarkers, meta.maxZoom]);
+
+  // Placement mode: a crosshair cursor cues the player to click the map to drop
+  // a marker. Hover handlers still flip it to pointer/grabbing transiently.
+  useEffect(() => {
+    if (!mapInstance) return;
+    mapInstance.getCanvas().style.cursor = placing ? "crosshair" : "";
+  }, [mapInstance, placing]);
 
   return (
     <div className="relative h-full w-full">

@@ -12,13 +12,20 @@ import { regionColor } from "@/lib/map/regions";
 import { CategoryIcon } from "@/lib/panels/CategoryIcon";
 import { CategoryPanel } from "@/lib/panels/CategoryPanel";
 import { MarkerDetail } from "@/lib/panels/MarkerDetail";
+import {
+  CustomMarkerEditor,
+  type CustomMarkerTarget,
+} from "@/lib/panels/CustomMarkerEditor";
 import { useProgressSync } from "@/lib/progress/useProgressSync";
+import { useCustomMarkers } from "@/lib/customMarkers/useCustomMarkers";
+import { CUSTOM_MARKER_DEFAULT_COLOR } from "@/lib/map/customMarkers";
 import {
   ChevronRightIcon,
   DiscoveryIcon,
   EyeIcon,
   EyeOffIcon,
   LayersIcon,
+  MapPinPlusIcon,
   PinIcon,
   SearchIcon,
 } from "@/lib/ui/icons";
@@ -57,6 +64,32 @@ export function MapScreen({
   const { user, token, logout } = useAuth();
   const authed = token !== null;
   const progress = useProgressSync(meta.id, authed);
+  const customMarkers = useCustomMarkers(meta.id, authed);
+
+  // "My Markers" (per-user custom pins). `placing` arms the next map click to
+  // drop a pin; `customTarget` drives the editor (a new draft or an existing
+  // pin); `hiddenCustomIds` mirrors hiddenCats for per-pin visibility.
+  const [placing, setPlacing] = useState(false);
+  const [customTarget, setCustomTarget] = useState<CustomMarkerTarget | null>(
+    null,
+  );
+  const [customBusy, setCustomBusy] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
+  const [hiddenCustomIds, setHiddenCustomIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [myMarkersOpen, setMyMarkersOpen] = useState(true);
+
+  // Sibling maps of a game share this route segment, so React reconciles
+  // MapScreen in place across a map switch — reset per-map ephemeral UI state
+  // (selection, placement, the open editor) so nothing from the old map leaks.
+  useEffect(() => {
+    setSelectedId(null);
+    setPlacing(false);
+    setCustomTarget(null);
+    setCustomError(null);
+    setHiddenCustomIds(new Set());
+  }, [meta.id]);
 
   // Category ids that are HIDDEN; an empty set means everything is shown.
   // Non-trackable categories (informational overlays) start hidden — the player
@@ -195,6 +228,101 @@ export function MapScreen({
     [markerById]
   );
 
+  // --- custom markers --------------------------------------------------------
+  const visibleCustomMarkers = useMemo(
+    () => customMarkers.markers.filter((m) => !hiddenCustomIds.has(m.id)),
+    [customMarkers.markers, hiddenCustomIds],
+  );
+
+  // Toggle placement mode. Anonymous users get the login modal (custom markers
+  // are account-scoped, like progress).
+  const togglePlacing = () => {
+    if (!authed) {
+      setShowLogin(true);
+      return;
+    }
+    setSelectedId(null);
+    setCustomTarget(null);
+    setPlacing((p) => !p);
+  };
+
+  // A map click while arming places a new pin (opens the editor on its spot).
+  const onMapClickPlace = (p: { x: number; y: number }) => {
+    if (!placing) return;
+    setPlacing(false);
+    setSelectedId(null);
+    setCustomError(null);
+    setCustomTarget({ kind: "new", x: p.x, y: p.y });
+  };
+
+  const openCustomMarker = (id: string) => {
+    const m = customMarkers.markers.find((cm) => cm.id === id);
+    if (!m) return;
+    setPlacing(false);
+    setSelectedId(null);
+    setCustomError(null);
+    setCustomTarget({ kind: "edit", marker: m });
+  };
+
+  // Drag-to-reposition persists immediately; the hook rolls back (snapping the
+  // pin to its saved spot) if the write fails.
+  const onCustomDragEnd = (id: string, p: { x: number; y: number }) => {
+    customMarkers
+      .update(id, { x: Math.round(p.x), y: Math.round(p.y) })
+      .catch(() => {});
+  };
+
+  const saveCustomMarker = async (values: {
+    label: string | null;
+    note: string | null;
+    color: string | null;
+  }) => {
+    if (!customTarget) return;
+    setCustomBusy(true);
+    setCustomError(null);
+    try {
+      if (customTarget.kind === "new") {
+        await customMarkers.create({
+          x: customTarget.x,
+          y: customTarget.y,
+          ...values,
+        });
+      } else {
+        await customMarkers.update(customTarget.marker.id, values);
+      }
+      setCustomTarget(null);
+    } catch (err) {
+      // Keep the editor open with the reason (e.g. the per-map cap) so the user
+      // can fix it and retry; the optimistic rollback already happened.
+      setCustomError(err instanceof Error ? err.message : "Couldn't save marker.");
+    } finally {
+      setCustomBusy(false);
+    }
+  };
+
+  const deleteCustomMarker = async () => {
+    if (customTarget?.kind !== "edit") return;
+    if (!window.confirm("Delete this marker?")) return;
+    setCustomBusy(true);
+    setCustomError(null);
+    try {
+      await customMarkers.remove(customTarget.marker.id);
+      setCustomTarget(null);
+    } catch (err) {
+      setCustomError(err instanceof Error ? err.message : "Couldn't delete marker.");
+    } finally {
+      setCustomBusy(false);
+    }
+  };
+
+  const toggleCustomHidden = (id: string) =>
+    setHiddenCustomIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   // MapView filters the full marker set by these category ids client-side:
   // null = show everything; an explicit list (empty = none) = exactly those.
   const allCatIds = categories.map((c) => c.id);
@@ -232,11 +360,19 @@ export function MapScreen({
           categories={catFilter}
           found={progress.found}
           hideFound={hideFound}
-          onMarkerClick={setSelectedId}
+          onMarkerClick={(id) => {
+            setCustomTarget(null);
+            setSelectedId(id);
+          }}
           focus={focus}
           categoryIcons={categoryIcons}
           regions={regions}
           regionFocus={regionFocus}
+          customMarkers={visibleCustomMarkers}
+          onCustomMarkerClick={openCustomMarker}
+          onCustomMarkerDragEnd={onCustomDragEnd}
+          onMapClick={onMapClickPlace}
+          placing={placing}
         />
       </div>
 
@@ -459,6 +595,82 @@ export function MapScreen({
             </div>
           )}
 
+          {authed && (
+            <div className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => setMyMarkersOpen((o) => !o)}
+                className="section-row"
+                aria-expanded={myMarkersOpen}
+              >
+                <ChevronRightIcon
+                  size={13}
+                  className={`flex-none text-fg transition-transform${
+                    myMarkersOpen ? " rotate-90" : ""
+                  }`}
+                />
+                <span className="section-title flex-1">My Markers</span>
+                <span className="flex-none text-xs font-bold tabular-nums text-fg">
+                  {customMarkers.markers.length}
+                </span>
+              </button>
+              {myMarkersOpen && (
+                <div className="flex flex-col gap-0.5 pb-1 pl-6">
+                  {customMarkers.markers.length === 0 ? (
+                    <p className="px-1 py-1 text-[13px] text-fg-dim">
+                      None yet — tap the pin button, then click the map to add
+                      one.
+                    </p>
+                  ) : (
+                    customMarkers.markers.map((m) => {
+                      const hidden = hiddenCustomIds.has(m.id);
+                      return (
+                        <div
+                          key={m.id}
+                          className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-white/5"
+                        >
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
+                            onClick={() => {
+                              openCustomMarker(m.id);
+                              setFocus({ x: m.x, y: m.y, key: Date.now() });
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="h-2.5 w-2.5 flex-none rounded-full border border-white/70"
+                              style={{
+                                background: m.color ?? CUSTOM_MARKER_DEFAULT_COLOR,
+                              }}
+                            />
+                            <span
+                              className={`truncate${hidden ? " opacity-45" : ""}`}
+                            >
+                              {m.label || "Untitled"}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-none p-1 text-fg-dim hover:text-fg"
+                            aria-label={hidden ? "Show marker" : "Hide marker"}
+                            onClick={() => toggleCustomHidden(m.id)}
+                          >
+                            {hidden ? (
+                              <EyeOffIcon size={16} />
+                            ) : (
+                              <EyeIcon size={16} />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <CategoryPanel
             categories={categories}
             counts={markerCountByCategory}
@@ -491,6 +703,43 @@ export function MapScreen({
           onMarkerLink={onMarkerLink}
           resolveMarkerLabel={resolveMarkerLabel}
         />
+      )}
+
+      {customTarget && (
+        <CustomMarkerEditor
+          key={
+            customTarget.kind === "edit"
+              ? customTarget.marker.id
+              : `new-${customTarget.x}-${customTarget.y}`
+          }
+          target={customTarget}
+          busy={customBusy}
+          error={customError}
+          onSave={saveCustomMarker}
+          onDelete={deleteCustomMarker}
+          onClose={() => setCustomTarget(null)}
+        />
+      )}
+
+      {/* Floating "add a custom marker" button — hidden while a detail/editor
+          panel is open (they share the bottom-right corner). */}
+      {!selected && !customTarget && (
+        <button
+          type="button"
+          onClick={togglePlacing}
+          aria-pressed={placing}
+          aria-label={placing ? "Cancel adding marker" : "Add a custom marker"}
+          title={
+            placing ? "Click the map to place — or tap to cancel" : "Add a marker"
+          }
+          className={`absolute bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-panel transition-colors ${
+            placing
+              ? "bg-lime text-black"
+              : "bg-white text-[#1a1c1f] hover:bg-white/90"
+          }`}
+        >
+          <MapPinPlusIcon size={26} />
+        </button>
       )}
 
       {showLogin && !authed && (

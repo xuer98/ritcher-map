@@ -94,9 +94,16 @@ export interface MapViewProps {
 const MARKER_INTERACTIVE_LAYERS = [MARKER_LAYER_ID, MARKER_SYMBOL_LAYER_ID];
 
 /** Longest icon edge (px) markers render at; sprites are scaled to this. */
-const ICON_TARGET_PX = 28;
+const ICON_TARGET_PX = 36;
 /** Rasterize sprites at 2x for crispness on hi-dpi screens. */
 const ICON_PIXEL_RATIO = 2;
+
+/**
+ * Min height:width ratio for an icon to count as a teardrop "pin" whose bottom
+ * tip marks the location (anchored at 'bottom'). MapGenie-style pins are 66×88
+ * (≈1.33); square game-icons glyphs are 1.0, so a 1.2 cutoff cleanly splits them.
+ */
+const PIN_ASPECT_MIN = 1.2;
 
 /**
  * Load an image URL into a square canvas and return ImageData for
@@ -109,7 +116,7 @@ const ICON_PIXEL_RATIO = 2;
 function drawIconToImageData(
   url: string,
   crossOrigin: boolean
-): Promise<ImageData> {
+): Promise<{ data: ImageData; pin: boolean }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     if (crossOrigin) img.crossOrigin = "anonymous";
@@ -127,8 +134,9 @@ function drawIconToImageData(
       const w = iw * scale;
       const h = ih * scale;
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      const pin = ih >= iw * PIN_ASPECT_MIN;
       try {
-        resolve(ctx.getImageData(0, 0, size, size));
+        resolve({ data: ctx.getImageData(0, 0, size, size), pin });
       } catch (e) {
         reject(e instanceof Error ? e : new Error("icon canvas tainted"));
       }
@@ -146,7 +154,9 @@ function drawIconToImageData(
  * some browsers (Safari), since a blob: URL is same-origin. The fetch still
  * needs the host to allow CORS — the same requirement as reading pixels back.
  */
-async function rasterizeViaBlob(url: string): Promise<ImageData> {
+async function rasterizeViaBlob(
+  url: string
+): Promise<{ data: ImageData; pin: boolean }> {
   const res = await fetch(url, { mode: "cors" });
   if (!res.ok) throw new Error(`icon fetch ${res.status}`);
   let blob = await res.blob();
@@ -170,7 +180,9 @@ async function rasterizeViaBlob(url: string): Promise<ImageData> {
  * SVG mislabeled as octet-stream — or canvas taint) retries by fetching the
  * bytes into a same-origin blob. Both paths need the remote host to allow CORS.
  */
-function rasterizeIcon(url: string): Promise<ImageData> {
+function rasterizeIcon(
+  url: string
+): Promise<{ data: ImageData; pin: boolean }> {
   return drawIconToImageData(url, true).catch((err) => {
     if (process.env.NODE_ENV !== "production") {
       console.warn("[rm-map] icon <img> load failed, retrying via fetch:", url, err);
@@ -269,6 +281,8 @@ export const MapView: React.FC<MapViewProps> = ({
   // Per-map-instance icon state: which category sprites are loaded (so we can
   // tag markers as symbols) and which are mid-load (de-dupes loadImage calls).
   const loadedIconCats = useRef<Set<number>>(new Set());
+  // Subset of loadedIconCats whose icon is a pin (bottom-anchored on the map).
+  const pinIconCats = useRef<Set<number>>(new Set());
   const loadingIcons = useRef<Set<string>>(new Set());
   // Whether the marker source is currently clustered. The style builds it
   // non-clustered; the marker effect recreates it clustered past the threshold.
@@ -558,6 +572,7 @@ export const MapView: React.FC<MapViewProps> = ({
   // is (re)created so we don't tag markers with sprites the new map lacks.
   useEffect(() => {
     loadedIconCats.current = new Set();
+    pinIconCats.current = new Set();
     loadingIcons.current = new Set();
     clusteredRef.current = false; // new map's style source is non-clustered
     setIconsVersion(0);
@@ -582,11 +597,12 @@ export const MapView: React.FC<MapViewProps> = ({
         // handles SVG and raster uniformly, normalized to a square sprite, drawn
         // as-is (no disc/tint behind the glyph).
         rasterizeIcon(url)
-          .then((data) => {
+          .then(({ data, pin }) => {
             loadingIcons.current.delete(spriteId);
             if (cancelled || map.hasImage(spriteId)) return;
             map.addImage(spriteId, data, { pixelRatio: ICON_PIXEL_RATIO });
             loadedIconCats.current.add(catId);
+            if (pin) pinIconCats.current.add(catId);
             setIconsVersion((v) => v + 1);
           })
           .catch((err) => {
@@ -654,7 +670,8 @@ export const MapView: React.FC<MapViewProps> = ({
         list,
         meta.maxZoom ?? 0,
         found,
-        loadedIconCats.current
+        loadedIconCats.current,
+        pinIconCats.current
       );
       markerFcRef.current = fc; // so the drag handler can move a feature in place
       src.setData(fc);

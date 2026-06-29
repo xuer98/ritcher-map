@@ -13,6 +13,12 @@ export type MarkerFeatureProps = {
    * layer renders those that don't.
    */
   icon?: string;
+  /**
+   * Set when the icon is a teardrop pin (taller than wide) whose bottom tip
+   * marks the location, so the symbol layer anchors it at 'bottom' instead of
+   * 'center'. Absent for square/centered glyphs.
+   */
+  pin?: boolean;
 };
 
 /**
@@ -29,6 +35,8 @@ export function markersToGeoJSON(
   found: Set<number>,
   /** Categories whose icon sprite is loaded; their markers render as symbols. */
   iconCategoryIds?: ReadonlySet<number>,
+  /** Subset of the above whose icon is a pin (bottom-anchored). */
+  pinCategoryIds?: ReadonlySet<number>,
 ): GeoJSON.FeatureCollection<GeoJSON.Point, MarkerFeatureProps> {
   const features: Array<GeoJSON.Feature<GeoJSON.Point, MarkerFeatureProps>> = [];
 
@@ -42,6 +50,7 @@ export function markersToGeoJSON(
     };
     if (iconCategoryIds?.has(m.categoryId)) {
       props.icon = categoryIconSpriteId(m.categoryId);
+      if (pinCategoryIds?.has(m.categoryId)) props.pin = true;
     }
     features.push({
       type: 'Feature',

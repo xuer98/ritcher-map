@@ -1,12 +1,13 @@
 {
-  "id": "session-1782603213871",
-  "startedAt": "2026-06-27T23:33:33.871Z",
+  "id": "session-1782674528570",
+  "startedAt": "2026-06-28T19:22:08.570Z",
   "cwd": "/Users/richardtang/Desktop/repos/ritcher-map",
   "context": {},
   "metrics": {
-    "edits": 2,
+    "edits": 1,
     "commands": 0,
     "tasks": 0,
     "errors": 0
-  }
+  },
+  "restoredAt": "2026-06-29T06:40:43.246Z"
 }

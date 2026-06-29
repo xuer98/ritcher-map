@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BrandTheme } from "@/lib/branding/BrandTheme";
 import { gameTitle } from "@/lib/games";
+import { GATEWAY_URL, TILE_SIZE } from "@/lib/config";
 import { resolveAssetUrl } from "@/lib/icons";
 import { breadcrumbJsonLd, JsonLd, videoGameJsonLd } from "@/lib/seo/JsonLd";
 import { fetchGame, fetchMaps } from "@/lib/server";
@@ -33,8 +34,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-function badgeClass(m: MapResponse): string {
-  return `badge badge-${m.status.toLowerCase()}`;
+/**
+ * Thumbnail for a map card: a single detail tile near the map's center. We pick
+ * the zoom 3 levels above where the whole map fits one tile (`fitZoom`), so the
+ * tile is a frame-filling, content-rich crop (the bare overview tile is mostly
+ * the source art's black padding). The map center is always within bounds, so
+ * the tile always exists; the tiler builds the full 0..maxZoom pyramid, so a
+ * sub-minZoom level is still served.
+ */
+function mapThumbUrl(m: MapResponse): string | null {
+  if (
+    m.status !== "READY" ||
+    m.width == null ||
+    m.height == null ||
+    m.maxZoom == null
+  ) {
+    return null;
+  }
+  const maxSide = Math.max(m.width, m.height);
+  const fitZoom = m.maxZoom - Math.ceil(Math.log2(maxSide / TILE_SIZE));
+  const z = Math.max(0, Math.min(m.maxZoom, fitZoom + 3));
+  const scale = 2 ** (m.maxZoom - z);
+  const x = Math.floor(m.width / 2 / scale / TILE_SIZE);
+  const y = Math.floor(m.height / 2 / scale / TILE_SIZE);
+  return `${GATEWAY_URL}/tiles/${m.prefix}/${z}/${x}/${y}.${m.format}`;
 }
 
 export default async function GamePage({ params }: Props) {
@@ -110,28 +133,56 @@ export default async function GamePage({ params }: Props) {
         </section>
 
         <h2 className="panel-title mt-6 mb-3">Maps</h2>
-        <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
-          {maps.map((m) =>
-            m.status === "READY" ? (
+        <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
+          {maps.map((m) => {
+            const thumb = mapThumbUrl(m);
+            return m.status === "READY" ? (
               <Link
                 key={m.id}
                 href={`/${m.gameSlug}/map/${m.mapSlug}`}
-                className="flex flex-col items-start gap-1.5 rounded-card border border-edge bg-panel p-4 transition-colors hover:border-brand"
+                className="group relative flex aspect-[16/10] flex-col justify-end overflow-hidden rounded-card border border-edge bg-panel transition-colors hover:border-brand"
               >
-                <span className="font-semibold">{m.name}</span>
-                <span className={badgeClass(m)}>{m.status}</span>
+                {thumb && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={thumb}
+                    alt=""
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                )}
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent"
+                />
+                <div className="relative z-10 flex items-center gap-2 p-4">
+                  <span className="text-lg font-bold text-white drop-shadow-md">
+                    {m.name}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="text-white/85 transition-transform group-hover:translate-x-1"
+                  >
+                    →
+                  </span>
+                </div>
               </Link>
             ) : (
               <div
                 key={m.id}
-                className="flex flex-col items-start gap-1.5 rounded-card border border-edge bg-panel p-4 opacity-60"
+                className="relative flex aspect-[16/10] flex-col justify-end overflow-hidden rounded-card border border-edge bg-panel opacity-60"
               >
-                <span className="font-semibold">{m.name}</span>
-                <span className={badgeClass(m)}>{m.status}</span>
-                <span className="text-xs text-fg-dim">Not published yet</span>
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent"
+                />
+                <div className="relative z-10 flex flex-col gap-1 p-4">
+                  <span className="text-lg font-bold text-white">{m.name}</span>
+                  <span className="text-xs text-fg-dim">Not published yet</span>
+                </div>
               </div>
-            )
-          )}
+            );
+          })}
         </div>
       </BrandTheme>
     </div>

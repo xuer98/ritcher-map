@@ -108,7 +108,12 @@ export function buildLayers(): LayerSpecification[] {
       'icon-size': 1,
       'icon-allow-overlap': true,
       'icon-ignore-placement': true,
-      'icon-anchor': 'center',
+      // Teardrop-pin icons (taller than wide) point to their location with the
+      // bottom tip, so they anchor at 'bottom'; square glyph icons are centered
+      // on the point. markers.ts tags pin-shaped icons with `pin` (by aspect
+      // ratio at load). Anchoring pins at 'center' put every tip ~half-an-icon
+      // below the real spot — invisible when zoomed in, badly off when zoomed out.
+      'icon-anchor': ['case', ['get', 'pin'], 'bottom', 'center'],
     },
     paint: {
       // Found markers dim (the circle layer signals found via stroke instead).

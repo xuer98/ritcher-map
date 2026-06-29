@@ -166,7 +166,15 @@
       "Bash(npx @claude-flow*)",
       "Bash(npx claude-flow*)",
       "Bash(node .claude/*)",
-      "mcp__claude-flow__*"
+      "mcp__claude-flow__*",
+      "mcp__Claude_Preview__preview_screenshot",
+      "mcp__Claude_Preview__preview_console_logs",
+      "mcp__Claude_Preview__preview_snapshot",
+      "mcp__Claude_Preview__preview_network",
+      "mcp__Claude_Preview__preview_list",
+      "mcp__Claude_in_Chrome__read_network_requests",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__list_connected_browsers"
     ],
     "deny": [
       "Read(./.env)",

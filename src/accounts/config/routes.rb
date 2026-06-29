@@ -10,5 +10,6 @@ Rails.application.routes.draw do
   # Authenticated. The gateway proxies /account/* with a validated token.
   namespace :account do
     get "me", to: "profiles#show"
+    resources :custom_markers, only: %i[index create update destroy]
   end
 end

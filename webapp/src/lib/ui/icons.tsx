@@ -47,6 +47,15 @@ export const PinIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** Location pin with a plus — the "add a custom marker" affordance. */
+export const MapPinPlusIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19.5 9.5c0 5-7.5 11.5-7.5 11.5S4.5 14.5 4.5 9.5a7.5 7.5 0 0 1 12.9-5.2" />
+    <path d="M17.5 2.5v5M20 5h-5" />
+    <circle cx="12" cy="9.5" r="2.2" />
+  </Svg>
+);
+
 export const EyeIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />

@@ -119,15 +119,28 @@ function normalizeLevel(
   src: Cell[],
   flipY: boolean,
 ): { cells: Cell[]; cols: number; rows: number } {
-  const cells = src.map((c) => ({ ...c }));
-  const minCol = Math.min(...cells.map((c) => c.col));
-  const minRow = Math.min(...cells.map((c) => c.row));
-  for (const c of cells) {
-    c.col -= minCol;
-    c.row -= minRow;
+  // Single-pass min/max — never `Math.min(...arr)`/`Math.max(...arr)`. Spreading
+  // an array into a call passes each element as an argument, which throws
+  // RangeError ("Maximum call stack size exceeded") once the array is larger
+  // than the engine's argument-count limit (~1.2e5 in V8). A deep pyramid level
+  // exceeds that, and since this runs in render it crashed the whole page.
+  let minCol = Infinity;
+  let minRow = Infinity;
+  for (const c of src) {
+    if (c.col < minCol) minCol = c.col;
+    if (c.row < minRow) minRow = c.row;
   }
-  const cols = Math.max(...cells.map((c) => c.col)) + 1;
-  const rows = Math.max(...cells.map((c) => c.row)) + 1;
+  const cells = src.map((c) => ({
+    ...c,
+    col: c.col - minCol,
+    row: c.row - minRow,
+  }));
+  let cols = 0;
+  let rows = 0;
+  for (const c of cells) {
+    if (c.col + 1 > cols) cols = c.col + 1;
+    if (c.row + 1 > rows) rows = c.row + 1;
+  }
   if (flipY) for (const c of cells) c.row = rows - 1 - c.row;
   return { cells, cols, rows };
 }

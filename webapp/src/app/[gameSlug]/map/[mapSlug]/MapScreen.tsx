@@ -53,6 +53,21 @@ export interface MapScreenProps {
 
 const SEARCH_LIMIT = 20;
 
+/**
+ * Ids of categories that are "untracked" — either the category itself is
+ * non-trackable, OR its parent is (untracked cascades to subcategories). These
+ * are the informational overlays: hidden on the map by default and excluded
+ * from discovery progress. `=== false` (not `!trackable`) so a category from an
+ * older catalog that omits the field is treated as trackable (the default).
+ */
+function untrackedCategoryIds(categories: CategoryResponse[]): Set<number> {
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const isUntracked = (c: CategoryResponse): boolean =>
+    c.trackable === false ||
+    (c.parentId !== null && byId.get(c.parentId)?.trackable === false);
+  return new Set(categories.filter(isUntracked).map((c) => c.id));
+}
+
 export function MapScreen({
   meta,
   categories,
@@ -92,15 +107,10 @@ export function MapScreen({
   }, [meta.id]);
 
   // Category ids that are HIDDEN; an empty set means everything is shown.
-  // Non-trackable categories (informational overlays) start hidden — the player
-  // can still toggle them on from the category panel.
-  // `=== false` (not `!c.trackable`) so a category from an older catalog that
-  // omits the field is treated as trackable (the default), not hidden.
-  const [hiddenCats, setHiddenCats] = useState<Set<number>>(
-    () =>
-      new Set(
-        categories.filter((c) => c.trackable === false).map((c) => c.id),
-      ),
+  // Untracked categories (and their subcategories) start hidden — informational
+  // overlays the player can still toggle on from the category panel.
+  const [hiddenCats, setHiddenCats] = useState<Set<number>>(() =>
+    untrackedCategoryIds(categories),
   );
   const [hideFound, setHideFound] = useState(false);
   const [search, setSearch] = useState("");
@@ -155,16 +165,15 @@ export function MapScreen({
     () => new Map(categories.map((c) => [c.id, c])),
     [categories]
   );
-  // Category ids that count toward discovery progress (trackable ones). Markers
-  // in non-trackable categories are excluded from both the total and the found
-  // tally below.
-  const trackableCatIds = useMemo(
-    () =>
-      new Set(
-        categories.filter((c) => c.trackable !== false).map((c) => c.id)
-      ),
-    [categories]
-  );
+  // Category ids that count toward discovery progress. Untracked categories AND
+  // their subcategories are excluded from both the total and the found tally
+  // below — same cascade as the hidden-by-default set above.
+  const trackableCatIds = useMemo(() => {
+    const untracked = untrackedCategoryIds(categories);
+    return new Set(
+      categories.filter((c) => !untracked.has(c.id)).map((c) => c.id),
+    );
+  }, [categories]);
   // categoryId -> resolved icon URL, for the map's symbol layer. Only
   // categories with a usable icon appear; the rest stay colored circles.
   const categoryIcons = useMemo(() => {

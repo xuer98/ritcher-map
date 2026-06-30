@@ -18,8 +18,8 @@ import {
 } from './pyramid';
 import type { MapResponse } from '../types';
 
-const IMPORT_CHUNK = 200; // keys signed per presign request (server cap is 500)
-const IMPORT_CONCURRENCY = 8; // simultaneous tile PUTs
+const IMPORT_CHUNK = 500; // keys signed per presign request (server cap is 500)
+const IMPORT_CONCURRENCY = 16; // simultaneous tile PUTs (R2 multiplexes over HTTP/2)
 
 /**
  * Produce the bytes to upload for one tile. Interior tiles already in the
@@ -135,15 +135,41 @@ export function useDirectImport(
       const total = work.length;
       let done = 0;
 
+      // Split the work into ≤500-key presign chunks (the server's per-request cap).
+      const chunks: (typeof work)[] = [];
       for (let i = 0; i < work.length; i += IMPORT_CHUNK) {
-        const batch = work.slice(i, i + IMPORT_CHUNK);
-        setImporting(`Uploading ${done}/${total} tiles…`);
+        chunks.push(work.slice(i, i + IMPORT_CHUNK));
+      }
+
+      const signChunk = async (batch: typeof work) => {
         const keys = batch.map((w) =>
           importTileKey(map.prefix, w.z, w.col, w.row, outFmt),
         );
         const { urls } = await presignKeys(keys, 'tiles');
-        const urlByKey = new Map(urls.map((u) => [u.key, u.url]));
-        await pool(batch, IMPORT_CONCURRENCY, async (w) => {
+        return new Map(urls.map((u) => [u.key, u.url]));
+      };
+
+      // Pipeline: presign the NEXT chunk while the current one uploads, so the
+      // presign round-trip overlaps with the PUTs instead of stalling between
+      // chunks. `pending` always holds the in-flight presign for the chunk we're
+      // about to upload. The benign `.catch` keeps a presign failure from
+      // surfacing as an unhandledrejection if the current chunk's uploads throw
+      // first (the real error still propagates the next time we `await pending`).
+      let pending =
+        chunks.length > 0
+          ? signChunk(chunks[0])
+          : Promise.resolve(new Map<string, string>());
+      pending.catch(() => {});
+
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const urlByKey = await pending;
+        pending =
+          ci + 1 < chunks.length
+            ? signChunk(chunks[ci + 1])
+            : Promise.resolve(new Map<string, string>());
+        pending.catch(() => {});
+        setImporting(`Uploading ${done}/${total} tiles…`);
+        await pool(chunks[ci], IMPORT_CONCURRENCY, async (w) => {
           const key = importTileKey(map.prefix, w.z, w.col, w.row, outFmt);
           const url = urlByKey.get(key);
           if (!url) throw new Error(`missing signed URL for ${key}`);

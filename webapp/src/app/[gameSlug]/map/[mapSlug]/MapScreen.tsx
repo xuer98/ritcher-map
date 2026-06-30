@@ -569,12 +569,12 @@ export function MapScreen({
                 <span className="section-title flex-1">Map Regions</span>
               </button>
               {regionsOpen && (
-                <div className="flex flex-col gap-0.5 pb-1 pl-6">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 pb-1 pl-6">
                   {regions.map((r) => (
                     <button
                       key={r.id}
                       type="button"
-                      className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-white/5"
+                      className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-white/5"
                       onClick={() =>
                         setRegionFocus((f) => ({
                           id: r.id,

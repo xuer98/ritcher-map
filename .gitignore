@@ -343,3 +343,7 @@ tiles/
 scripts/
 !webapp/scripts/
 .agents/
+
+# Claude-Flow local state (sessions, neural stats, pending insights) — machine-
+# local scratch, regenerated per run; never belongs in version control.
+.claude-flow/

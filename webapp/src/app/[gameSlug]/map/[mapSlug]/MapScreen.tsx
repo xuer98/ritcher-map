@@ -373,6 +373,16 @@ export function MapScreen({
             setCustomTarget(null);
             setSelectedId(id);
           }}
+          onMarkerToggleFound={(id) => {
+            // Ctrl/Cmd+click shortcut: flip found state without opening the
+            // panel. Anonymous users get the login modal (progress is synced
+            // server-side), mirroring the discovery box and marker-placing.
+            if (!authed) {
+              setShowLogin(true);
+              return;
+            }
+            progress.toggle(id);
+          }}
           focus={focus}
           categoryIcons={categoryIcons}
           regions={regions}

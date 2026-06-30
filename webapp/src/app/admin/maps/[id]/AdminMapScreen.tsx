@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   bulkImportMarkers,
   createMarker,
@@ -214,6 +214,12 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
   const [mCat, setMCat] = useState('');
   const [mX, setMX] = useState('');
   const [mY, setMY] = useState('');
+  // Reposition is an explicit two-step gesture: "Move" arms dragging (a drag
+  // only PREVIEWS the new x/y into the fields), "Set" persists it. Outside an
+  // active move pins aren't draggable, so a stray drag can't silently save.
+  const [moving, setMoving] = useState(false);
+  const movingRef = useRef(false);
+  movingRef.current = moving;
 
   const markerById = useMemo(
     () => new Map(markers.map((m) => [m.id, m])),
@@ -230,6 +236,8 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
 
   const selectNew = useCallback(
     (p: { x: number; y: number }) => {
+      if (movingRef.current) reloadMarkers(); // abandon an unset move; snap pin back
+      setMoving(false);
       setSelection({ kind: 'new', x: p.x, y: p.y });
       setMTitle('');
       setMDesc('');
@@ -237,13 +245,15 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
       setMY(p.y.toFixed(1));
       setMCat((prev) => prev); // keep last-used category for rapid placement
     },
-    [],
+    [reloadMarkers],
   );
 
   const selectExisting = useCallback(
     (id: number) => {
       const m = markerById.get(id);
       if (!m) return;
+      if (movingRef.current) reloadMarkers(); // abandon an unset move; snap pin back
+      setMoving(false);
       setSelection({ kind: 'edit', marker: m });
       setMTitle(m.title ?? '');
       setMDesc(m.description ?? '');
@@ -251,7 +261,7 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
       setMX(String(m.x));
       setMY(String(m.y));
     },
-    [markerById],
+    [markerById, reloadMarkers],
   );
 
   const markerMutated = () => {
@@ -281,6 +291,7 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
       } else {
         await updateMarker(selection.marker.id, input);
       }
+      setMoving(false); // a full Save also commits position — leave move mode
       markerMutated();
       notify('success', creating ? 'Marker created.' : 'Marker saved.');
     } catch (err) {
@@ -301,39 +312,60 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
     }
   };
 
-  // Dragging a pin on the map persists its new position immediately (using the
-  // marker's currently-saved title/category/description). If that marker is
-  // open in the editor, sync its coord fields so a follow-up Save stays correct.
+  // While moving, dragging the SELECTED pin only previews its new x/y into the
+  // editor fields — nothing is persisted until "Set". (Pins are draggable only
+  // in move mode; see the gated MapView prop.) A drag on any other pin is a
+  // stray gesture, so reload to snap it back.
   const onMarkerDragEnd = useCallback(
-    async (id: number, p: { x: number; y: number }) => {
-      const m = markerById.get(id);
-      if (!m) return;
-      const x = Number(p.x.toFixed(1));
-      const y = Number(p.y.toFixed(1));
-      const editingThis =
-        selection?.kind === 'edit' && selection.marker.id === id;
-      try {
-        await updateMarker(id, {
-          categoryId: m.categoryId,
-          x,
-          y,
-          title: m.title,
-          description: m.description,
-        });
+    (id: number, p: { x: number; y: number }) => {
+      if (selection?.kind !== 'edit' || selection.marker.id !== id) {
         reloadMarkers();
-        if (editingThis) {
-          setMX(String(x));
-          setMY(String(y));
-          setSelection({ kind: 'edit', marker: { ...m, x, y } });
-        }
-        notify('success', 'Marker moved.');
-      } catch (err) {
-        notify('error', errMsg(err, 'move failed'));
-        reloadMarkers(); // snap the pin back to its persisted position
+        return;
       }
+      setMX(p.x.toFixed(1));
+      setMY(p.y.toFixed(1));
     },
-    [markerById, selection, reloadMarkers, notify],
+    [selection, reloadMarkers],
   );
+
+  // "Set": persist the previewed location only — the marker keeps its saved
+  // category/title/description, so this is independent of unsaved form edits.
+  const commitMove = async () => {
+    if (selection?.kind !== 'edit') return;
+    const m = selection.marker;
+    const x = Number(mX);
+    const y = Number(mY);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      notify('error', 'Enter valid X/Y coordinates.');
+      return;
+    }
+    try {
+      await updateMarker(m.id, {
+        categoryId: m.categoryId,
+        x,
+        y,
+        title: m.title,
+        description: m.description,
+      });
+      setSelection({ kind: 'edit', marker: { ...m, x, y } });
+      setMoving(false);
+      reloadMarkers();
+      notify('success', 'Marker moved.');
+    } catch (err) {
+      notify('error', errMsg(err, 'move failed'));
+      reloadMarkers(); // snap the pin back to its persisted position
+    }
+  };
+
+  // "Cancel move": discard the preview, snap the pin back to its saved spot.
+  const cancelMove = () => {
+    setMoving(false);
+    if (selection?.kind === 'edit') {
+      setMX(String(selection.marker.x));
+      setMY(String(selection.marker.y));
+    }
+    reloadMarkers();
+  };
 
   // --- bulk import -----------------------------------------------------------
   const [bulkText, setBulkText] = useState('');
@@ -476,7 +508,9 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                 <div className="text-xs text-fg-dim px-1 pt-0.5 pb-2">
                   {regionDraw
                     ? 'Click to add polygon points · finish in the Regions panel →'
-                    : 'Click the map to place a marker · click a marker to edit it · drag a marker to move it'}
+                    : moving
+                      ? 'Drag the selected pin to its new spot, then “Set” in the editor →'
+                      : 'Click the map to place a marker · click a marker to edit it · use “Move” then “Set” to reposition'}
                 </div>
                 <div className="relative h-[62vh] overflow-hidden rounded-md">
                   <MapView
@@ -495,7 +529,7 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                         selectNew(p);
                       }
                     }}
-                    onMarkerDragEnd={onMarkerDragEnd}
+                    onMarkerDragEnd={moving ? onMarkerDragEnd : undefined}
                     categoryIcons={categoryIcons}
                     regions={regions}
                     drawing={regionDraw}
@@ -566,27 +600,55 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                     aria-label="y"
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button className="btn btn-primary" type="submit">
-                    {selection.kind === 'new' ? 'Create marker' : 'Save'}
-                  </button>
-                  {selection.kind === 'edit' && (
+                {moving ? (
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      className="btn btn-danger"
-                      onClick={markerRemove}
+                      className="btn btn-primary"
+                      onClick={commitMove}
                     >
-                      Delete
+                      Set
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setSelection(null)}
-                  >
-                    Cancel
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={cancelMove}
+                    >
+                      Cancel move
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button className="btn btn-primary" type="submit">
+                      {selection.kind === 'new' ? 'Create marker' : 'Save'}
+                    </button>
+                    {selection.kind === 'edit' && (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setMoving(true)}
+                      >
+                        Move
+                      </button>
+                    )}
+                    {selection.kind === 'edit' && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={markerRemove}
+                      >
+                        Delete
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setSelection(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </form>
             </div>
           )}

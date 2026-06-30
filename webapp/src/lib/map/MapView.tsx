@@ -62,6 +62,13 @@ export interface MapViewProps {
   /** Hide found markers from the map entirely (not just restyle them). */
   hideFound?: boolean;
   onMarkerClick: (markerId: number) => void;
+  /**
+   * Ctrl+click (Windows/Linux) or Cmd+click (macOS — where Ctrl+click is a
+   * right-click) a marker to toggle its found state in place, without opening
+   * the detail panel. Opt-in: when omitted, a modified click just selects like
+   * a normal click. The player view wires this to discovery progress.
+   */
+  onMarkerToggleFound?: (markerId: number) => void;
   /** Pixel-space point to fly the camera to; bump `key` to retrigger. */
   focus?: { x: number; y: number; key: number } | null;
   /**
@@ -297,6 +304,7 @@ export const MapView: React.FC<MapViewProps> = ({
   found,
   hideFound = false,
   onMarkerClick,
+  onMarkerToggleFound,
   focus = null,
   onMapClick,
   onMarkerDragEnd,
@@ -330,6 +338,8 @@ export const MapView: React.FC<MapViewProps> = ({
   // Keep the latest callbacks without re-binding the click handlers.
   const onClickRef = useRef(onMarkerClick);
   onClickRef.current = onMarkerClick;
+  const onToggleFoundRef = useRef(onMarkerToggleFound);
+  onToggleFoundRef.current = onMarkerToggleFound;
   const onMapClickRef = useRef(onMapClick);
   onMapClickRef.current = onMapClick;
   const onMarkerDragEndRef = useRef(onMarkerDragEnd);
@@ -415,6 +425,13 @@ export const MapView: React.FC<MapViewProps> = ({
           ? Number(propId)
           : Number(feature.id);
       if (Number.isNaN(id)) return;
+      // Ctrl/Cmd+click toggles found in place instead of opening the detail
+      // panel (a quick "mark as found" without the round-trip through the popup).
+      const oe = e.originalEvent;
+      if ((oe.ctrlKey || oe.metaKey) && onToggleFoundRef.current) {
+        onToggleFoundRef.current(id);
+        return;
+      }
       onClickRef.current(id);
     };
 

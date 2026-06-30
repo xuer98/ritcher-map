@@ -225,6 +225,17 @@ function flattenBounds(
   return [b[0][0], b[0][1], b[1][0], b[1][1]];
 }
 
+/**
+ * Camera options for flying to a region's bounds. `linear: true` uses easeTo
+ * instead of the default flyTo — in this near-pole pixel CRS flyTo zooms out
+ * past the target and back, which reads as the camera "flying all over" before
+ * settling; easeTo interpolates straight to the fit. `maxZoom` is per-map so a
+ * region never zooms past the native max.
+ */
+function regionFitOptions(maxZoom: number | undefined) {
+  return { padding: 48, maxZoom, linear: true, duration: 600 };
+}
+
 function isReady(meta: MapResponse): boolean {
   return (
     meta.status === "READY" &&
@@ -609,7 +620,7 @@ export const MapView: React.FC<MapViewProps> = ({
           : Number((f.properties as { id?: number }).id);
       const region = regionsRef.current.find((r) => r.id === id);
       if (!region) return;
-      map.fitBounds(regionBounds(region, maxZoom), { padding: 48, maxZoom });
+      map.fitBounds(regionBounds(region, maxZoom), regionFitOptions(maxZoom));
     };
     const onRegionEnter = (): void => {
       map.getCanvas().style.cursor = "pointer";
@@ -862,10 +873,10 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!mapInstance || !regionFocus) return;
     const region = (regions ?? []).find((r) => r.id === regionFocus.id);
     if (!region) return;
-    mapInstance.fitBounds(regionBounds(region, meta.maxZoom ?? 0), {
-      padding: 48,
-      maxZoom: meta.maxZoom ?? undefined,
-    });
+    mapInstance.fitBounds(
+      regionBounds(region, meta.maxZoom ?? 0),
+      regionFitOptions(meta.maxZoom ?? undefined),
+    );
   }, [mapInstance, regionFocus, regions, meta.maxZoom]);
 
   // Draft-polygon overlay (admin region authoring): rebuild source + layers on

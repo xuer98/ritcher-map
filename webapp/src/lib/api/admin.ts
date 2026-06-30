@@ -292,13 +292,25 @@ export function presignKeys(
   return presignFetch<{ bucket: string; urls: PresignedKey[] }>({ keys, target });
 }
 
-/** PUT a file to a presigned URL. XHR (not fetch) for upload progress events. */
-export function uploadToPresignedUrl(
+// R2 (like S3) returns 503 "Slow Down" — and occasionally 429/5xx — when PUTs
+// arrive faster than it wants, which a bulk tile import easily triggers. These
+// are transient: retry with backoff. A 403 (expired/invalid presigned URL) or
+// other 4xx won't fix itself, so we fail those immediately.
+const RETRYABLE_UPLOAD_STATUS = new Set([429, 500, 502, 503, 504]);
+const MAX_UPLOAD_ATTEMPTS = 6;
+
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** One PUT attempt. Always resolves (never rejects) with the outcome so the
+ *  retry loop stays linear. `status: 0` + `networkError` is the no-readable-
+ *  response case (genuine network failure or a CORS rule that blocks the PUT —
+ *  the only case where the CORS hint actually applies). */
+function putOnce(
   url: string,
   file: Blob,
   onProgress?: (pct: number) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
+): Promise<{ status: number; networkError: boolean; retryAfterMs: number }> {
+  return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
     if (file.type) xhr.setRequestHeader('Content-Type', file.type);
@@ -308,19 +320,56 @@ export function uploadToPresignedUrl(
       }
     };
     xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(
-            new Error(
-              `upload failed: ${xhr.status} (is the bucket's CORS policy set for this origin?)`,
-            ),
-          );
-    xhr.onerror = () =>
-      reject(
-        new Error(
-          'upload failed: network/CORS error (the R2 bucket needs a CORS rule allowing PUT from this origin)',
-        ),
-      );
+      resolve({
+        status: xhr.status,
+        networkError: false,
+        retryAfterMs: (Number(xhr.getResponseHeader('retry-after')) || 0) * 1000,
+      });
+    xhr.onerror = () => resolve({ status: 0, networkError: true, retryAfterMs: 0 });
     xhr.send(file);
   });
+}
+
+/** PUT a file to a presigned URL. XHR (not fetch) for upload progress events.
+ *  Transient throttling/network responses are retried with exponential backoff
+ *  + full jitter (honoring Retry-After) so a bulk import survives R2 rate limits
+ *  instead of aborting on the first 503. */
+export async function uploadToPresignedUrl(
+  url: string,
+  file: Blob,
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    const { status, networkError, retryAfterMs } = await putOnce(
+      url,
+      file,
+      onProgress,
+    );
+    if (status >= 200 && status < 300) return;
+
+    const transient = networkError || RETRYABLE_UPLOAD_STATUS.has(status);
+    if (!transient || attempt >= MAX_UPLOAD_ATTEMPTS) {
+      if (networkError) {
+        throw new Error(
+          'upload failed: network/CORS error (the R2 bucket needs a CORS rule allowing PUT from this origin)',
+        );
+      }
+      if (transient) {
+        throw new Error(
+          `upload failed: ${status} after ${attempt} attempts — R2 is throttling/overloaded; wait a moment or import fewer tiles at once`,
+        );
+      }
+      throw new Error(
+        status === 403
+          ? 'upload failed: 403 — the presigned URL expired or was rejected; reload the page and retry'
+          : `upload failed: ${status}`,
+      );
+    }
+
+    // Full jitter: random point in [0, cappedBackoff]; never shorter than a
+    // server-sent Retry-After. Decorrelates the 16 concurrent uploaders so they
+    // don't all retry in lockstep and re-trigger the throttle.
+    const backoff = Math.min(8000, 250 * 2 ** (attempt - 1));
+    await delay(Math.max(retryAfterMs, Math.random() * backoff));
+  }
 }

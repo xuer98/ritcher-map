@@ -147,8 +147,23 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
       }))
       .filter((node) => node.children.length > 0 || has(node.category.id));
   }, [tree, counts]);
-  // Collapsed group ids; groups start expanded.
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  // Collapsed group ids. Groups start expanded — except a level-1 (top-level)
+  // category flagged untracked, which starts collapsed: it's hidden from
+  // discovery progress by default, so keep it tucked away by default too.
+  // (`=== false`, not `!trackable`, so older catalog rows lacking the field
+  // stay expanded.) The user can still expand it manually.
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => {
+    const present = new Set(categories.map((c) => c.id));
+    return new Set(
+      categories
+        .filter(
+          (c) =>
+            (c.parentId === null || !present.has(c.parentId)) &&
+            c.trackable === false,
+        )
+        .map((c) => c.id),
+    );
+  });
 
   if (displayed.length === 0) {
     return (

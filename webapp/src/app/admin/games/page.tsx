@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import {
   createGame,
@@ -12,6 +11,7 @@ import {
   type GameInput,
 } from '@/lib/api/admin';
 import { listGames } from '@/lib/api/games';
+import { BrandTheme } from '@/lib/branding/BrandTheme';
 import { resolveAssetUrl } from '@/lib/icons';
 import type { GameResponse } from '@/lib/types';
 
@@ -36,6 +36,13 @@ function errMsg(e: unknown, fallback: string): string {
   return e instanceof Error ? e.message : fallback;
 }
 
+/** A readable font-family name from an uploaded file's name, so a self-hosted
+ *  font has something to bind its @font-face to (e.g. "Cinzel-Bold.woff2" →
+ *  "Cinzel Bold"). Only used to seed an empty family; the user can edit it. */
+function familyFromFilename(name: string): string {
+  return name.replace(/\.[^.]+$/, '').replace(/[._-]+/g, ' ').trim() || 'Custom';
+}
+
 export default function AdminGamesPage() {
   const [games, setGames] = useState<GameResponse[]>([]);
   // null = no form open; '' = creating; otherwise the slug being edited.
@@ -43,9 +50,9 @@ export default function AdminGamesPage() {
   const [form, setForm] = useState<Form>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState<'logoUrl' | 'thumbnailUrl' | null>(
-    null,
-  );
+  const [uploading, setUploading] = useState<
+    'logoUrl' | 'thumbnailUrl' | 'fontUrl' | null
+  >(null);
 
   const reload = () => listGames().then(setGames).catch(() => setGames([]));
   useEffect(() => {
@@ -78,7 +85,7 @@ export default function AdminGamesPage() {
 
   const upload = async (
     file: File | undefined,
-    field: 'logoUrl' | 'thumbnailUrl',
+    field: 'logoUrl' | 'thumbnailUrl' | 'fontUrl',
   ) => {
     if (!file) return;
     setUploading(field);
@@ -87,7 +94,15 @@ export default function AdminGamesPage() {
       const grant = await presignUpload(file.name, 'tiles');
       await uploadToPresignedUrl(grant.url, file);
       const url = resolveAssetUrl(grant.key);
-      setForm((f) => ({ ...f, [field]: url ?? grant.key }));
+      setForm((f) => {
+        const next = { ...f, [field]: url ?? grant.key };
+        // A self-hosted font needs a family name to bind its @font-face to;
+        // seed one from the filename when the user hasn't typed one.
+        if (field === 'fontUrl' && f.fontFamily.trim() === '') {
+          next.fontFamily = familyFromFilename(file.name);
+        }
+        return next;
+      });
       if (!url) {
         setError(
           'Uploaded, but NEXT_PUBLIC_ASSET_BASE_URL is unset — paste a public URL instead.',
@@ -136,10 +151,21 @@ export default function AdminGamesPage() {
     }
   };
 
-  const previewStyle: CSSProperties = {
-    '--color-brand': form.primaryColor || '#3b82f6',
-    '--color-accent': form.accentColor || '#3b82f6',
-  } as CSSProperties;
+  // Preview through the real BrandTheme so colors AND the font (stylesheet link
+  // or self-hosted @font-face) render exactly as they will on the live site.
+  const previewGame: GameResponse = {
+    id: 0,
+    slug: form.slug || 'preview',
+    title: form.title,
+    primaryColor: nullable(form.primaryColor),
+    accentColor: nullable(form.accentColor),
+    fontFamily: nullable(form.fontFamily),
+    fontUrl: nullable(form.fontUrl),
+    logoUrl: nullable(form.logoUrl),
+    thumbnailUrl: nullable(form.thumbnailUrl),
+    createdAt: '',
+    updatedAt: '',
+  };
 
   return (
     <>
@@ -263,16 +289,33 @@ export default function AdminGamesPage() {
 
           <input
             className="input"
-            placeholder="font family (CSS name, e.g. 'Cinzel', serif)"
+            placeholder="font family (CSS name, e.g. Cinzel)"
             value={form.fontFamily}
             onChange={set('fontFamily')}
           />
-          <input
-            className="input"
-            placeholder="font stylesheet URL (e.g. Google Fonts href)"
-            value={form.fontUrl}
-            onChange={set('fontUrl')}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="input flex-1"
+              placeholder="font stylesheet URL (Google Fonts href) — or upload a file →"
+              value={form.fontUrl}
+              onChange={set('fontUrl')}
+            />
+            <label className="btn btn-sm">
+              {uploading === 'fontUrl' ? 'Uploading…' : 'Upload font'}
+              <input
+                type="file"
+                accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf"
+                hidden
+                disabled={uploading !== null}
+                onChange={(e) => upload(e.target.files?.[0], 'fontUrl')}
+              />
+            </label>
+          </div>
+          <p className="-mt-1 text-[12px] text-fg-dim">
+            Paste a font-stylesheet URL (e.g. Google Fonts), or upload a
+            .woff2/.ttf to self-host it — the uploaded file binds to the
+            font-family name above.
+          </p>
 
           {(['logoUrl', 'thumbnailUrl'] as const).map((field) => (
             <div key={field} className="flex flex-wrap items-center gap-2">
@@ -297,22 +340,22 @@ export default function AdminGamesPage() {
             </div>
           ))}
 
-          {/* Live brand preview */}
-          <div
+          {/* Live brand preview — rendered through BrandTheme itself. */}
+          <BrandTheme
+            game={previewGame}
             className="flex items-center gap-3 rounded-card border border-edge p-3"
-            style={previewStyle}
           >
+            <span className="font-bold">{form.title || 'Preview'}</span>
             <span
-              className="font-bold"
-              style={form.fontFamily ? { fontFamily: form.fontFamily } : undefined}
+              className="badge"
+              style={{ background: 'var(--color-brand)', color: '#fff' }}
             >
-              {form.title || 'Preview'}
-            </span>
-            <span className="badge" style={{ background: 'var(--color-brand)', color: '#fff' }}>
               brand
             </span>
-            <span className="btn btn-primary btn-sm pointer-events-none">accent</span>
-          </div>
+            <span className="btn btn-primary btn-sm pointer-events-none">
+              accent
+            </span>
+          </BrandTheme>
 
           <div className="flex gap-2">
             <button type="submit" className="btn btn-primary" disabled={busy}>

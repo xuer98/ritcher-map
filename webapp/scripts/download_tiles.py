@@ -71,6 +71,20 @@ class TileClient:
     def __init__(self, session: aiohttp.ClientSession, cfg: Config):
         self.session = session
         self.cfg = cfg
+        self._dirs: set[Path] = set()  # dirs already created, to skip mkdir syscalls
+
+    def _write_tile(self, path: Path, data: bytes) -> None:
+        """Blocking write (temp-file + atomic rename). Runs in a worker thread
+        (via asyncio.to_thread) so the event loop keeps servicing every other
+        worker's network I/O instead of stalling on disk. Directory creation is
+        cached: one mkdir per directory, not one per tile."""
+        d = path.parent
+        if d not in self._dirs:
+            d.mkdir(parents=True, exist_ok=True)
+            self._dirs.add(d)  # benign cross-thread race; mkdir(exist_ok) is idempotent
+        tmp = path.with_suffix(".jpg.part")
+        tmp.write_bytes(data)
+        tmp.replace(path)
 
     def url(self, z: int, y: int, x: int) -> str:
         return URL_TEMPLATE.format(
@@ -107,12 +121,9 @@ class TileClient:
                 async with self.session.get(url) as resp:
                     if resp.status == 200:
                         data = await resp.read()
-                        path.parent.mkdir(parents=True, exist_ok=True)
-                        # write to a temp file then rename, so an interrupted
-                        # run never leaves a half-written tile that we'd skip.
-                        tmp = path.with_suffix(".jpg.part")
-                        tmp.write_bytes(data)
-                        tmp.replace(path)
+                        # Temp-file + rename (so an interrupted run never leaves
+                        # a half-written tile), off the event loop in a thread.
+                        await asyncio.to_thread(self._write_tile, path, data)
                         return "downloaded"
                     if resp.status == 404:
                         await resp.read()
@@ -302,7 +313,8 @@ def main() -> None:
     p.add_argument("--bounds", help="explicit 'MINX,MAXX,MINY,MAXY'")
     p.add_argument("--bounds-zoom", type=int, help="zoom that --bounds refers to")
     p.add_argument("--out", type=Path, default=Path("tiles"))
-    p.add_argument("--concurrency", type=int, default=8)
+    p.add_argument("--concurrency", type=int, default=32,
+                   help="parallel in-flight requests; try 64-128 if the CDN keeps up")
     p.add_argument("--delay", type=float, default=0.0,
                    help="seconds each worker waits after a tile (politeness)")
     p.add_argument("--retries", type=int, default=3)

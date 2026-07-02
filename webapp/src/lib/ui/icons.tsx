@@ -84,3 +84,44 @@ export const DiscoveryIcon = (p: IconProps) => (
     <path d="M8.5 12l2.5 2.5L16 9" />
   </Svg>
 );
+
+/** iOS-style share: tray with an up arrow. */
+export const ShareIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3v11" />
+    <path d="M8 6.5L12 3l4 3.5" />
+    <path d="M6 11H5a1 1 0 0 0-1 1v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a1 1 0 0 0-1-1h-1" />
+  </Svg>
+);
+
+/** Expand / view full screen (two diagonal arrows). */
+export const ExpandIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M14 4h6v6" />
+    <path d="M20 4l-7 7" />
+    <path d="M10 20H4v-6" />
+    <path d="M4 20l7-7" />
+  </Svg>
+);
+
+export const CloseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 5l14 14M19 5L5 19" />
+  </Svg>
+);
+
+/** Check in a circle — the "Found" toggle. */
+export const CheckCircleIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M8.5 12.5l2.5 2.5 4.5-5.5" />
+  </Svg>
+);
+
+/** Compass — the "Explore" action (fly the camera to the marker). */
+export const CompassIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M15.5 8.5l-2 5-5 2 2-5 5-2z" />
+  </Svg>
+);

@@ -151,6 +151,18 @@ export function MapScreen({
     () => new Map((allMarkers ?? []).map((m) => [m.id, m])),
     [allMarkers]
   );
+  // Shared deep link: /…/map/<slug>?m=<markerId> selects + flies to the marker
+  // once the catalog list arrives (client-only; runs at most once per map).
+  useEffect(() => {
+    if (allMarkers === null) return;
+    const id = Number(new URLSearchParams(window.location.search).get("m"));
+    if (!Number.isInteger(id) || id <= 0) return;
+    const m = markerById.get(id);
+    if (!m) return;
+    setSelectedId(id);
+    setFocus({ x: m.x, y: m.y, key: Date.now() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allMarkers === null, meta.id]);
   // Marker count per category ON THIS MAP. Categories are game-scoped (shared by
   // every map of the game), so the panel must count this map's markers — not the
   // category's subcategory count, which is identical across all the game's maps.
@@ -715,10 +727,18 @@ export function MapScreen({
         <MarkerDetail
           marker={selected}
           category={categoryById.get(selected.categoryId)}
-          authed={authed}
           found={progress.isFound(selected.id)}
-          onToggleFound={() => progress.toggle(selected.id)}
+          onToggleFound={() => {
+            // Progress is account-scoped — anonymous users get the login modal
+            // (same gate as the ctrl-click shortcut and the discovery box).
+            if (!authed) {
+              setShowLogin(true);
+              return;
+            }
+            progress.toggle(selected.id);
+          }}
           onClose={() => setSelectedId(null)}
+          onExplore={() => jumpTo(selected)}
           onMarkerLink={onMarkerLink}
           resolveMarkerLabel={resolveMarkerLabel}
         />

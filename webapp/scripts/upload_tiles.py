@@ -3,7 +3,8 @@
 upload_tiles.py — process a local tile pyramid and upload it straight to R2,
 then mark the map READY. The local equivalent of the admin console's "Import
 directly" button, minus the browser: no tab-memory ceiling, no 503 throttling,
-resumable uploads via rclone.
+rclone-driven uploads that overwrite existing tiles (--no-replace for an
+incremental, resumable skip-if-identical pass instead).
 
 Pipeline (mirrors the webapp's useDirectImport + pyramid logic):
   1. Scan a {z}/{y}/{x} (MapGenie / download_tiles.py default) or {z}/{x}/{y}
@@ -205,6 +206,9 @@ def main() -> None:
     ap.add_argument("--remote", default="r2", help="rclone remote name (default r2)")
     ap.add_argument("--bucket", default="tiles", help="R2 bucket ('' if the remote is bucket-scoped)")
     ap.add_argument("--transfers", type=int, default=32, help="rclone parallel transfers")
+    ap.add_argument("--no-replace", action="store_true",
+                    help="skip tiles already in R2 with identical content (incremental/resumable); "
+                         "default replaces/overwrites every tile")
     ap.add_argument("--map-id", type=int, help="catalog map id (to derive --prefix and/or mark READY)")
     ap.add_argument("--gateway", help="gateway base URL (for --prefix derivation and --mark)")
     ap.add_argument("--token", help="admin bearer token (for authed map fetch / mark)")
@@ -264,7 +268,11 @@ def main() -> None:
         print(f"staged at {staging} (upload skipped)")
     else:
         dest = f"{args.remote}:{args.bucket}/{prefix}" if args.bucket else f"{args.remote}:{prefix}"
-        cmd = ["rclone", "copy", str(staging), dest, "--transfers", str(args.transfers), "--checksum", "-P"]
+        # Replace existing tiles by default: --ignore-times forces rclone to
+        # re-upload every tile (copy always overwrites the destination). --no-replace
+        # restores the incremental skip-if-identical behavior (--checksum).
+        compare = "--checksum" if args.no_replace else "--ignore-times"
+        cmd = ["rclone", "copy", str(staging), dest, "--transfers", str(args.transfers), compare, "-P"]
         print("+ " + " ".join(cmd))
         rc = subprocess.run(cmd).returncode
         if rc != 0:

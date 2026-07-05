@@ -26,6 +26,8 @@ import {
   EyeOffIcon,
   LayersIcon,
   MapPinPlusIcon,
+  PanelCollapseIcon,
+  PanelExpandIcon,
   PinIcon,
   SearchIcon,
 } from "@/lib/ui/icons";
@@ -117,6 +119,7 @@ export function MapScreen({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   // Side-menu disclosure state.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
   const [regionsOpen, setRegionsOpen] = useState(true);
   const [focus, setFocus] = useState<{
@@ -407,7 +410,23 @@ export function MapScreen({
         />
       </div>
 
-      <aside className="sidebar absolute left-0 top-0 z-10">
+      {!sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+          title="Open sidebar"
+          className="absolute left-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-panel text-fg shadow-panel hover:bg-white/10"
+        >
+          <PanelExpandIcon size={20} />
+        </button>
+      )}
+
+      <aside
+        className={`sidebar absolute left-0 top-0 z-10${
+          sidebarOpen ? "" : " hidden"
+        }`}
+      >
         <Link
           href={`/${meta.gameSlug}`}
           className="px-0.5 pt-0.5 hover:no-underline"
@@ -426,8 +445,18 @@ export function MapScreen({
           )}
         </Link>
 
-        {/* Search */}
-        <div>
+        {/* Collapse + search */}
+        <div className="flex items-start gap-2.5">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-panel text-fg hover:bg-white/10"
+          >
+            <PanelCollapseIcon size={20} />
+          </button>
+          <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5 rounded-full bg-panel px-4 py-2.5">
             <SearchIcon size={18} className="flex-none text-fg-dim" />
             <input
@@ -468,6 +497,7 @@ export function MapScreen({
               )}
             </div>
           )}
+          </div>
         </div>
 
         {/* Discovery progress */}

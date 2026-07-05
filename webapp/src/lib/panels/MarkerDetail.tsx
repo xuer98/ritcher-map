@@ -129,15 +129,12 @@ export const MarkerDetail: React.FC<MarkerDetailProps> = ({
               className="absolute inset-0 h-full w-full object-cover"
             />
             {controls}
-            {/* Category badge, overlapping the hero's bottom edge. */}
-            <span
-              className="absolute -bottom-7 left-4 flex h-14 w-14 items-center justify-center rounded-full shadow-panel"
-              style={{ background: 'var(--color-brand)' }}
-            >
+            {/* Category icon, overlapping the hero's bottom edge. */}
+            <span className="absolute -bottom-7 left-4 flex h-14 w-14 items-center justify-center drop-shadow-[0_3px_6px_rgba(0,0,0,0.6)]">
               <CategoryIcon
                 icon={category?.icon ?? null}
                 categoryId={marker.categoryId}
-                size={30}
+                size={52}
                 alt={category?.name ?? ''}
               />
             </span>
@@ -145,14 +142,11 @@ export const MarkerDetail: React.FC<MarkerDetailProps> = ({
         ) : (
           <div className="relative h-14 flex-none">
             {controls}
-            <span
-              className="absolute left-4 top-3 flex h-14 w-14 items-center justify-center rounded-full shadow-panel"
-              style={{ background: 'var(--color-brand)' }}
-            >
+            <span className="absolute left-4 top-3 flex h-14 w-14 items-center justify-center drop-shadow-[0_3px_6px_rgba(0,0,0,0.6)]">
               <CategoryIcon
                 icon={category?.icon ?? null}
                 categoryId={marker.categoryId}
-                size={30}
+                size={52}
                 alt={category?.name ?? ''}
               />
             </span>

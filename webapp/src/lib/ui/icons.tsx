@@ -125,3 +125,21 @@ export const CompassIcon = (p: IconProps) => (
     <path d="M15.5 8.5l-2 5-5 2 2-5 5-2z" />
   </Svg>
 );
+
+/** Collapse the sidebar: panel with its rail filled, chevron pushing into it. */
+export const PanelCollapseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <path d="M4 5.5h5v13H4z" fill="currentColor" stroke="none" />
+    <path d="M16 9l-3 3 3 3" />
+  </Svg>
+);
+
+/** Expand the sidebar (mirror of PanelCollapseIcon). */
+export const PanelExpandIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <path d="M4 5.5h5v13H4z" fill="currentColor" stroke="none" />
+    <path d="M13 9l3 3-3 3" />
+  </Svg>
+);

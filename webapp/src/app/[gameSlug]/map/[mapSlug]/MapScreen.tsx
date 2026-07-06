@@ -3,7 +3,11 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getMarkers, type CatalogMarker } from "@/lib/api/maps";
+import {
+  getMarkers,
+  registerMarkerClick,
+  type CatalogMarker,
+} from "@/lib/api/maps";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { LoginForm } from "@/lib/auth/LoginForm";
 import { BrandTheme } from "@/lib/branding/BrandTheme";
@@ -24,8 +28,11 @@ import {
   DiscoveryIcon,
   EyeIcon,
   EyeOffIcon,
+  FlameIcon,
   LayersIcon,
   MapPinPlusIcon,
+  PanelCollapseIcon,
+  PanelExpandIcon,
   PinIcon,
   SearchIcon,
 } from "@/lib/ui/icons";
@@ -113,10 +120,12 @@ export function MapScreen({
     untrackedCategoryIds(categories),
   );
   const [hideFound, setHideFound] = useState(false);
+  const [popularOnly, setPopularOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   // Side-menu disclosure state.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
   const [regionsOpen, setRegionsOpen] = useState(true);
   const [focus, setFocus] = useState<{
@@ -204,6 +213,23 @@ export function MapScreen({
       .filter((m) => (m.title ?? "").toLowerCase().includes(q))
       .slice(0, SEARCH_LIMIT);
   }, [search, allMarkers]);
+
+  // Popularity filter: "popular" = top quintile (>= the 80th-percentile click
+  // count) among this map's markers that have been clicked at all. Until
+  // anything is clicked there's no signal, so the filter shows nothing.
+  const popularityThreshold = useMemo(() => {
+    const counts = (allMarkers ?? [])
+      .map((m) => m.clickCount ?? 0)
+      .filter((c) => c > 0)
+      .sort((a, b) => a - b);
+    if (counts.length === 0) return Infinity;
+    return Math.max(1, counts[Math.floor(counts.length * 0.8)] ?? counts[counts.length - 1]);
+  }, [allMarkers]);
+  const markersForMap = useMemo(() => {
+    const ms = allMarkers ?? [];
+    if (!popularOnly) return ms;
+    return ms.filter((m) => (m.clickCount ?? 0) >= popularityThreshold);
+  }, [allMarkers, popularOnly, popularityThreshold]);
 
   // Flip one category between shown and hidden.
   const toggleCat = (id: number) =>
@@ -377,13 +403,26 @@ export function MapScreen({
       <div className="absolute inset-0 z-0">
         <MapView
           meta={meta}
-          markers={allMarkers ?? []}
+          markers={markersForMap}
           categories={catFilter}
           found={progress.found}
           hideFound={hideFound}
           onMarkerClick={(id) => {
             setCustomTarget(null);
             setSelectedId(id);
+            // Popularity signal: every marker open counts one click. Server
+            // increment is fire-and-forget; the local bump keeps the loaded
+            // list consistent without a refetch.
+            registerMarkerClick(id);
+            setAllMarkers((ms) =>
+              ms === null
+                ? ms
+                : ms.map((m) =>
+                    m.id === id
+                      ? { ...m, clickCount: (m.clickCount ?? 0) + 1 }
+                      : m,
+                  ),
+            );
           }}
           onMarkerToggleFound={(id) => {
             // Ctrl/Cmd+click shortcut: flip found state without opening the
@@ -407,7 +446,23 @@ export function MapScreen({
         />
       </div>
 
-      <aside className="sidebar absolute left-0 top-0 z-10">
+      {!sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+          title="Open sidebar"
+          className="absolute left-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-panel text-fg shadow-panel hover:bg-white/10"
+        >
+          <PanelExpandIcon size={20} />
+        </button>
+      )}
+
+      <aside
+        className={`sidebar absolute left-0 top-0 z-10${
+          sidebarOpen ? "" : " hidden"
+        }`}
+      >
         <Link
           href={`/${meta.gameSlug}`}
           className="px-0.5 pt-0.5 hover:no-underline"
@@ -426,8 +481,18 @@ export function MapScreen({
           )}
         </Link>
 
-        {/* Search */}
-        <div>
+        {/* Collapse + search */}
+        <div className="flex items-start gap-2.5">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-panel text-fg hover:bg-white/10"
+          >
+            <PanelCollapseIcon size={20} />
+          </button>
+          <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5 rounded-full bg-panel px-4 py-2.5">
             <SearchIcon size={18} className="flex-none text-fg-dim" />
             <input
@@ -468,6 +533,7 @@ export function MapScreen({
               )}
             </div>
           )}
+          </div>
         </div>
 
         {/* Discovery progress */}
@@ -551,7 +617,7 @@ export function MapScreen({
         )}
 
         {/* Quick toggles */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => (allHidden ? showAllCats() : hideAllCats())}
@@ -575,6 +641,20 @@ export function MapScreen({
             <PinIcon size={22} />
             <span className="text-[12px] font-bold uppercase tracking-[1.5px]">
               Unfound only
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPopularOnly((v) => !v)}
+            className={`flex flex-col items-center gap-1.5 rounded-xl py-3 ${
+              popularOnly ? "text-lime" : "text-fg hover:bg-white/5"
+            }`}
+            aria-pressed={popularOnly}
+            title="Show only the most-clicked markers"
+          >
+            <FlameIcon size={22} />
+            <span className="text-[12px] font-bold uppercase tracking-[1.5px]">
+              Popular
             </span>
           </button>
         </div>

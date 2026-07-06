@@ -72,6 +72,10 @@ func TestCatalogReadsPublicWritesAdmin(t *testing.T) {
 		{"anon read categories", http.MethodGet, "/api/v1/categories", "", http.StatusOK},
 		{"anon read markers", http.MethodGet, "/api/v1/markers", "", http.StatusOK},
 		{"anon read regions", http.MethodGet, "/api/v1/maps/1/regions", "", http.StatusOK},
+		// Popularity clicks are public (anonymous players count too) — but only
+		// that exact verb+path; other marker writes stay admin-gated below.
+		{"anon marker click", http.MethodPost, "/api/v1/markers/5/click", "", http.StatusOK},
+		{"user marker click", http.MethodPost, "/api/v1/markers/5/click", userToken, http.StatusOK},
 		// Anonymous writes are rejected at the edge.
 		{"anon create game", http.MethodPost, "/api/v1/games", "", http.StatusUnauthorized},
 		{"anon update game", http.MethodPut, "/api/v1/games/elden-ring", "", http.StatusUnauthorized},

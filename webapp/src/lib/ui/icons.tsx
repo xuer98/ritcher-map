@@ -125,3 +125,29 @@ export const CompassIcon = (p: IconProps) => (
     <path d="M15.5 8.5l-2 5-5 2 2-5 5-2z" />
   </Svg>
 );
+
+/** Flame — the popularity filter (most-clicked markers). */
+export const FlameIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 21c3.9 0 6.5-2.5 6.5-6.2 0-2.6-1.4-4.6-2.9-6.3-.6 1-1.2 1.6-2 2.1.2-2.7-1-5.6-3.6-7.6.2 2.4-.8 3.9-2.1 5.4-1.3 1.6-2.4 3.4-2.4 6.4C5.5 18.5 8.1 21 12 21z" />
+    <path d="M12 21c-1.8 0-3-1.4-3-3.1 0-1.4.8-2.3 1.6-3.2.5.6 1 .9 1.7 1.1-.1-1.2.2-2.4 1.2-3.3.4 2.3 2.5 3 2.5 5.4 0 1.7-1.2 3.1-4 3.1z" />
+  </Svg>
+);
+
+/** Collapse the sidebar: panel with its rail filled, chevron pushing into it. */
+export const PanelCollapseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <path d="M4 5.5h5v13H4z" fill="currentColor" stroke="none" />
+    <path d="M16 9l-3 3 3 3" />
+  </Svg>
+);
+
+/** Expand the sidebar (mirror of PanelCollapseIcon). */
+export const PanelExpandIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <path d="M4 5.5h5v13H4z" fill="currentColor" stroke="none" />
+    <path d="M13 9l3 3-3 3" />
+  </Svg>
+);

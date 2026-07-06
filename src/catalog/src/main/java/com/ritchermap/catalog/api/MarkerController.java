@@ -51,6 +51,17 @@ public class MarkerController {
         markers.delete(id);
     }
 
+    /**
+     * Popularity: +1 for every player click on the marker. Public at the
+     * gateway (anonymous clicks count too), so it takes no body and returns
+     * none — there's nothing for a caller to abuse beyond the counter itself.
+     */
+    @PostMapping("/markers/{id}/click")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void click(@PathVariable long id) {
+        markers.registerClick(id);
+    }
+
     /** Bulk import — used when seeding a new map from an extracted dataset. */
     @PostMapping("/maps/{mapId}/markers:bulk")
     public BulkImportResponse bulk(@PathVariable long mapId,

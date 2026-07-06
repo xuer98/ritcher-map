@@ -96,6 +96,18 @@ public class MarkerService {
     }
 
     /**
+     * Popularity: a player opened this marker. Deliberately publishes no
+     * {@code catalog.changed} event — clicks are high-volume and don't need
+     * cache invalidation; readers pick counts up on their next full load.
+     */
+    @Transactional
+    public void registerClick(long id) {
+        if (markers.incrementClickCount(id) == 0) {
+            throw NotFoundException.of("marker", id);
+        }
+    }
+
+    /**
      * Editor seeds a map from an extracted dataset (CSV/JSON of points).
      * Goes through {@link MarkerRepositoryCustom#bulkInsert} so 5k markers
      * insert in one batched round trip rather than 5k individual JPA saves.

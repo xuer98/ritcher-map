@@ -88,6 +88,42 @@ describe('MarkerBody — marker references', () => {
   });
 });
 
+describe('MarkerBody — category & region references', () => {
+  it('renders [label](#category-N) as a category-link button, not an anchor', () => {
+    const out = html('all [Riftstones](#category-12) on the map');
+    expect(out).toContain('class="category-link"');
+    expect(out).toContain('data-category-id="12"');
+    expect(out).toContain('Riftstones');
+    expect(out).not.toContain('<a');
+  });
+
+  it('renders [label](#region-N) as a region-link button, not an anchor', () => {
+    const out = html('north of [White Orchard](#region-3)');
+    expect(out).toContain('class="region-link"');
+    expect(out).toContain('data-region-id="3"');
+    expect(out).toContain('White Orchard');
+    expect(out).not.toContain('<a');
+  });
+
+  it('falls back to "Category #N" / "Region #N" when the link text is empty', () => {
+    const out = html('[](#category-9) and [](#region-4)');
+    expect(out).toContain('Category #9');
+    expect(out).toContain('Region #4');
+  });
+
+  it('uses the category/region resolvers for empty link text when provided', () => {
+    const out = renderToStaticMarkup(
+      createElement(MarkerBody, {
+        markdown: '[](#category-9) and [](#region-4)',
+        resolveCategoryLabel: (id: number) => `Cat ${id}`,
+        resolveRegionLabel: (id: number) => `Reg ${id}`,
+      }),
+    );
+    expect(out).toContain('Cat 9');
+    expect(out).toContain('Reg 4');
+  });
+});
+
 describe('MarkerBody — sanitization', () => {
   it('drops raw <script> tags and inline event handlers (no executable HTML)', () => {
     // Raw HTML is not parsed into elements; the <script>/<img onerror> never

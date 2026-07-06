@@ -96,6 +96,10 @@ func New(d Deps) (http.Handler, error) {
 		mux.Handle("GET "+p, catalogProxy)
 		mux.Handle(p, requireAuth(auth.RequireAdmin(catalogProxy)))
 	}
+	// Popularity clicks are a public write: anonymous players count too. The
+	// pattern is more specific than the admin-gated "/api/v1/markers/" above,
+	// so Go's most-specific-wins routing carves just this verb+path out.
+	mux.Handle("POST /api/v1/markers/{id}/click", catalogProxy)
 
 	// --- proxied: accounts (handles its own auth/login) ---
 	accountsProxy, err := proxy.New(d.Cfg.AccountsURL, true)

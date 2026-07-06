@@ -1,4 +1,4 @@
-import { apiGet } from './client';
+import { apiGet, apiSend } from './client';
 import type { MapResponse, CategoryResponse, RegionResponse } from '../types';
 
 /**
@@ -14,6 +14,8 @@ export interface CatalogMarker {
   y: number;
   title: string | null;
   description: string | null;
+  /** Popularity: total player clicks. Optional until every catalog is on V8. */
+  clickCount?: number;
 }
 
 // Catalog GETs are public at the gateway (writes stay behind auth), so none
@@ -55,4 +57,13 @@ export async function getRegions(mapId: number): Promise<RegionResponse[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Popularity: count a player click on a marker (+1 server-side, public route).
+ * Fire-and-forget — a lost click must never break the map, so errors are
+ * swallowed here and callers don't await it.
+ */
+export function registerMarkerClick(markerId: number): void {
+  apiSend<void>('POST', `/api/v1/markers/${markerId}/click`).catch(() => {});
 }

@@ -16,4 +16,14 @@ public interface MarkerRepository extends JpaRepository<Marker, Long>, MarkerRep
     @Modifying
     @Query("DELETE FROM Marker m WHERE m.mapId = :mapId")
     int deleteAllByMapId(@Param("mapId") Long mapId);
+
+    /**
+     * Popularity: +1 click, atomically in the database (the entity column is
+     * read-only to JPA, so counts can't be lost to concurrent stale flushes).
+     * Returns 0 when the marker doesn't exist.
+     */
+    @Modifying
+    @Query(value = "UPDATE markers SET click_count = click_count + 1 WHERE id = :id",
+           nativeQuery = true)
+    int incrementClickCount(@Param("id") long id);
 }

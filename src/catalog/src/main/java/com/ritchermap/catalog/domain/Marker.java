@@ -27,6 +27,14 @@ public class Marker {
     @Column(nullable = false, columnDefinition = "geometry(Point,0)")
     private Point geom;
 
+    /**
+     * Popularity counter (player clicks). JPA never writes it — inserts take
+     * the DB default (0) and increments go through an atomic native UPDATE in
+     * the repository, so concurrent clicks can't lose counts to a stale flush.
+     */
+    @Column(name = "click_count", nullable = false, insertable = false, updatable = false)
+    private long clickCount;
+
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private Instant createdAt;
 
@@ -46,6 +54,7 @@ public class Marker {
     public Long getId() { return id; }
     public Long getMapId() { return mapId; }
     public Long getCategoryId() { return categoryId; }
+    public long getClickCount() { return clickCount; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
     public Point getGeom() { return geom; }

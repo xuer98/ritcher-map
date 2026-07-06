@@ -174,13 +174,15 @@ public final class Dtos {
     public record MarkerResponse(
             long id, long mapId, long categoryId,
             double x, double y,
-            String title, String description
+            String title, String description,
+            long clickCount
     ) {
         public static MarkerResponse from(Marker m) {
             return new MarkerResponse(
                     m.getId(), m.getMapId(), m.getCategoryId(),
                     m.getGeom().getX(), m.getGeom().getY(),
-                    m.getTitle(), m.getDescription()
+                    m.getTitle(), m.getDescription(),
+                    m.getClickCount()
             );
         }
     }

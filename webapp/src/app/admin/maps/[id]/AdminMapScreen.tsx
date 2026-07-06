@@ -585,6 +585,8 @@ export function AdminMapScreen({ mapId }: { mapId: number }) {
                         m.id !== selection.marker.id,
                     )
                     .map((m) => ({ id: m.id, title: m.title }))}
+                  categories={categories}
+                  regions={regions}
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <input

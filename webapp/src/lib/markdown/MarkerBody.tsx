@@ -16,7 +16,23 @@ export interface MarkerBodyProps {
   onMarkerLink?: (markerId: number) => void;
   /** Label for a marker reference with empty link text (`[](#marker-<id>)`). */
   resolveMarkerLabel?: (markerId: number) => string | null;
+  /**
+   * Clicked a `[label](#category-<id>)` reference. The host reveals that
+   * category's markers on the map (it may be hidden/untracked).
+   */
+  onCategoryLink?: (categoryId: number) => void;
+  /** Label for a category reference with empty link text. */
+  resolveCategoryLabel?: (categoryId: number) => string | null;
+  /**
+   * Clicked a `[label](#region-<id>)` reference. The host fits the camera to
+   * that region, like the sidebar's region list.
+   */
+  onRegionLink?: (regionId: number) => void;
+  /** Label for a region reference with empty link text. */
+  resolveRegionLabel?: (regionId: number) => string | null;
 }
+
+type LinkHandlers = Omit<MarkerBodyProps, 'markdown'>;
 
 /** Flatten React children to a string (a bare autolink's child is its URL). */
 function childText(children: ReactNode): string {
@@ -25,30 +41,46 @@ function childText(children: ReactNode): string {
   return '';
 }
 
-const MARKER_HREF_RE = /^#marker-(\d+)$/;
+/** In-app reference: `#marker-<id>`, `#category-<id>`, or `#region-<id>`. */
+const REF_HREF_RE = /^#(marker|category|region)-(\d+)$/;
 
-function buildComponents(
-  onMarkerLink?: (id: number) => void,
-  resolveMarkerLabel?: (id: number) => string | null,
-): Components {
+/** Fallback label ("Marker #7") + button class per reference kind. */
+const REF_KINDS = {
+  marker: { className: 'marker-link', noun: 'Marker' },
+  category: { className: 'category-link', noun: 'Category' },
+  region: { className: 'region-link', noun: 'Region' },
+} as const;
+
+function buildComponents(handlers: LinkHandlers): Components {
+  const onRefClick = {
+    marker: handlers.onMarkerLink,
+    category: handlers.onCategoryLink,
+    region: handlers.onRegionLink,
+  };
+  const resolveRefLabel = {
+    marker: handlers.resolveMarkerLabel,
+    category: handlers.resolveCategoryLabel,
+    region: handlers.resolveRegionLabel,
+  };
   return {
     a(props) {
       const href = typeof props.href === 'string' ? props.href : '';
 
-      // Internal reference to another marker → an action button, not a link.
-      const ref = MARKER_HREF_RE.exec(href);
+      // Internal reference to a marker/category/region → an action button.
+      const ref = REF_HREF_RE.exec(href);
       if (ref) {
-        const id = Number(ref[1]);
+        const kind = ref[1] as keyof typeof REF_KINDS;
+        const id = Number(ref[2]);
         const label =
           childText(props.children) ||
-          resolveMarkerLabel?.(id) ||
-          `Marker #${id}`;
+          resolveRefLabel[kind]?.(id) ||
+          `${REF_KINDS[kind].noun} #${id}`;
         return (
           <button
             type="button"
-            className="marker-link"
-            data-marker-id={id}
-            onClick={() => onMarkerLink?.(id)}
+            className={REF_KINDS[kind].className}
+            {...{ [`data-${kind}-id`]: id }}
+            onClick={() => onRefClick[kind]?.(id)}
           >
             {label}
           </button>
@@ -110,16 +142,36 @@ function buildComponents(
  * Render a marker's Markdown description as sanitized HTML. No raw HTML is
  * allowed (react-markdown ignores it by default + rehype-sanitize), and the
  * only embeds are React-rendered from URLs we validate, so the content is safe.
- * `[label](#marker-<id>)` links become in-app jumps to other markers.
+ * `[label](#marker-<id>)` links become in-app jumps to other markers;
+ * `#category-<id>` / `#region-<id>` links reveal a category / fly to a region.
  */
 export function MarkerBody({
   markdown,
   onMarkerLink,
   resolveMarkerLabel,
+  onCategoryLink,
+  resolveCategoryLabel,
+  onRegionLink,
+  resolveRegionLabel,
 }: MarkerBodyProps) {
   const components = useMemo(
-    () => buildComponents(onMarkerLink, resolveMarkerLabel),
-    [onMarkerLink, resolveMarkerLabel],
+    () =>
+      buildComponents({
+        onMarkerLink,
+        resolveMarkerLabel,
+        onCategoryLink,
+        resolveCategoryLabel,
+        onRegionLink,
+        resolveRegionLabel,
+      }),
+    [
+      onMarkerLink,
+      resolveMarkerLabel,
+      onCategoryLink,
+      resolveCategoryLabel,
+      onRegionLink,
+      resolveRegionLabel,
+    ],
   );
   if (!markdown || markdown.trim() === '') return null;
   return (

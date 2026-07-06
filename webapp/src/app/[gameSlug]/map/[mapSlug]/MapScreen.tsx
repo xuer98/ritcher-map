@@ -275,6 +275,44 @@ export function MapScreen({
     [markerById]
   );
 
+  // A `[label](#category-<id>)` reference: reveal that category's markers on
+  // the map (descriptions often point at hidden/untracked overlays). No-op for
+  // ids outside this game; already-visible categories stay as they are.
+  const onCategoryLink = useCallback(
+    (id: number) => {
+      if (!categoryById.has(id)) return;
+      setHiddenCats((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    },
+    [categoryById]
+  );
+  const resolveCategoryLabel = useCallback(
+    (id: number) => categoryById.get(id)?.name ?? null,
+    [categoryById]
+  );
+
+  const regionById = useMemo(
+    () => new Map(regions.map((r) => [r.id, r])),
+    [regions]
+  );
+  // A `[label](#region-<id>)` reference: fit the camera to the region, exactly
+  // like the sidebar's region list. No-op if the region isn't on this map.
+  const onRegionLink = useCallback(
+    (id: number) => {
+      if (!regionById.has(id)) return;
+      setRegionFocus((f) => ({ id, key: (f?.key ?? 0) + 1 }));
+    },
+    [regionById]
+  );
+  const resolveRegionLabel = useCallback(
+    (id: number) => regionById.get(id)?.name ?? null,
+    [regionById]
+  );
+
   // --- custom markers --------------------------------------------------------
   const visibleCustomMarkers = useMemo(
     () => customMarkers.markers.filter((m) => !hiddenCustomIds.has(m.id)),
@@ -821,6 +859,10 @@ export function MapScreen({
           onExplore={() => jumpTo(selected)}
           onMarkerLink={onMarkerLink}
           resolveMarkerLabel={resolveMarkerLabel}
+          onCategoryLink={onCategoryLink}
+          resolveCategoryLabel={resolveCategoryLabel}
+          onRegionLink={onRegionLink}
+          resolveRegionLabel={resolveRegionLabel}
         />
       )}
 

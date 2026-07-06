@@ -26,6 +26,14 @@ export interface MarkerDetailProps {
   onMarkerLink: (id: number) => void;
   /** Resolve a linked marker's id to its title, or null if not loaded. */
   resolveMarkerLabel: (id: number) => string | null;
+  /** Follow a `#category-<id>` link (reveal the category on the map). */
+  onCategoryLink: (id: number) => void;
+  /** Resolve a linked category's id to its name, or null if unknown. */
+  resolveCategoryLabel: (id: number) => string | null;
+  /** Follow a `#region-<id>` link (fit the camera to the region). */
+  onRegionLink: (id: number) => void;
+  /** Resolve a linked region's id to its name, or null if unknown. */
+  resolveRegionLabel: (id: number) => string | null;
 }
 
 /** First Markdown image in the description: `![alt](url)` (optional title). */
@@ -56,6 +64,10 @@ export const MarkerDetail: React.FC<MarkerDetailProps> = ({
   onExplore,
   onMarkerLink,
   resolveMarkerLabel,
+  onCategoryLink,
+  resolveCategoryLabel,
+  onRegionLink,
+  resolveRegionLabel,
 }) => {
   const { hero, body } = useMemo(
     () => splitHero(marker.description),
@@ -167,6 +179,10 @@ export const MarkerDetail: React.FC<MarkerDetailProps> = ({
               markdown={body}
               onMarkerLink={onMarkerLink}
               resolveMarkerLabel={resolveMarkerLabel}
+              onCategoryLink={onCategoryLink}
+              resolveCategoryLabel={resolveCategoryLabel}
+              onRegionLink={onRegionLink}
+              resolveRegionLabel={resolveRegionLabel}
             />
           ) : (
             !hero && (

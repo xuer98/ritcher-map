@@ -163,16 +163,29 @@
     @apply border-accent shadow-[0_0_0_1px_var(--color-accent)_inset];
   }
 
-  /* In-description reference to another marker */
-  .marker-link {
+  /* In-description references (marker / category / region), distinguished by
+     their ::before glyph only */
+  .marker-link,
+  .category-link,
+  .region-link {
     @apply m-0 inline cursor-pointer border-0 bg-transparent p-0 font-[inherit]
       text-accent underline [text-underline-offset:2px] hover:text-fg;
   }
-  .marker-link::before {
-    content: '\1F4CD';
+  .marker-link::before,
+  .category-link::before,
+  .region-link::before {
     margin-right: 3px;
     font-size: 0.9em;
     text-decoration: none;
+  }
+  .marker-link::before {
+    content: '\1F4CD';
+  }
+  .category-link::before {
+    content: '\1F3F7\FE0F';
+  }
+  .region-link::before {
+    content: '\1F5FA\FE0F';
   }
 }
 

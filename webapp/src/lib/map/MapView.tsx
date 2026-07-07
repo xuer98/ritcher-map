@@ -761,12 +761,34 @@ export const MapView: React.FC<MapViewProps> = ({
       }
     };
 
-    if (map.isStyleLoaded()) loadAll();
-    else map.once("load", loadAll);
+    // Gate on the style-shipped rm-markers source existing, not
+    // isStyleLoaded(): isStyleLoaded() flaps false transiently (sprite/glyph/
+    // tile churn) after `load` has fired, and a settled map schedules no
+    // repaint, so no further `load`/`idle` may ever fire — a once() handler
+    // registered in that window never runs and icons silently stay circles.
+    // Persistent styledata/idle handlers retry until one application lands,
+    // then unsubscribe; the style's initial load always fires styledata.
+    // (loadAll itself is safe to re-run: it skips loaded/loading sprites.)
+    let applied = false;
+    const tryLoadAll = (): void => {
+      if (applied || !map.getSource(MARKER_SOURCE_ID)) return;
+      applied = true;
+      map.off("styledata", tryLoadAll);
+      map.off("idle", tryLoadAll);
+      loadAll();
+    };
+
+    if (map.getSource(MARKER_SOURCE_ID)) {
+      loadAll();
+    } else {
+      map.on("styledata", tryLoadAll);
+      map.on("idle", tryLoadAll);
+    }
 
     return () => {
       cancelled = true;
-      map.off("load", loadAll);
+      map.off("styledata", tryLoadAll);
+      map.off("idle", tryLoadAll);
     };
   }, [mapInstance, categoryIcons]);
 

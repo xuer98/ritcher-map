@@ -35,6 +35,11 @@ export interface MapResponse {
   format: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Total marker clicks on this map (powers the Popular sort). Optional until
+   * every catalog deploy sends it; write-path echoes report 0.
+   */
+  popularity?: number;
 }
 
 /** Per-game branding (catalog /api/v1/games). All branding fields nullable. */

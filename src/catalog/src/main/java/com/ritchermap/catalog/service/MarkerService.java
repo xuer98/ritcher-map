@@ -15,7 +15,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class MarkerService {
@@ -105,6 +107,26 @@ public class MarkerService {
         if (markers.incrementClickCount(id) == 0) {
             throw NotFoundException.of("marker", id);
         }
+    }
+
+    /**
+     * Popularity rollup for the map browser: total marker clicks keyed by map
+     * id, from one aggregate query. Maps with no markers are absent — callers
+     * treat missing as 0.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Long> clicksByMap() {
+        Map<Long, Long> byMap = new HashMap<>();
+        for (var row : markers.sumClickCountByMap()) {
+            byMap.put(row.getMapId(), row.getClicks());
+        }
+        return byMap;
+    }
+
+    /** Total marker clicks on one map (0 when it has no markers). */
+    @Transactional(readOnly = true)
+    public long clicksForMap(long mapId) {
+        return markers.sumClickCountForMap(mapId);
     }
 
     /**

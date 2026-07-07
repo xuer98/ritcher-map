@@ -18,6 +18,17 @@ function latestUpdated(g: GameSummary): number {
   return max;
 }
 
+/**
+ * Popularity signal: total marker clicks across the game's maps (each map's
+ * `popularity` is the catalog's per-map click rollup). Missing field (older
+ * catalog deploy) counts 0, so the sort degrades to the map-count tiebreak.
+ */
+function totalPopularity(g: GameSummary): number {
+  let sum = 0;
+  for (const m of g.maps) sum += m.popularity ?? 0;
+  return sum;
+}
+
 const SORTS: {
   key: SortKey;
   label: string;
@@ -27,8 +38,12 @@ const SORTS: {
   {
     key: 'popular',
     label: 'Popular',
-    // No popularity metric in the catalog yet — map count is the best proxy.
-    compare: (a, b) => b.maps.length - a.maps.length || a.title.localeCompare(b.title),
+    // Real popularity (total marker clicks), then map count for games with no
+    // clicks yet (fresh deploy / catalog without the field), then title.
+    compare: (a, b) =>
+      totalPopularity(b) - totalPopularity(a) ||
+      b.maps.length - a.maps.length ||
+      a.title.localeCompare(b.title),
     icon: (
       <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
         <path d="M12 2.5l2.9 5.9 6.5.95-4.7 4.58 1.11 6.47L12 17.9l-5.81 3.05 1.11-6.47-4.7-4.58 6.5-.95z" />

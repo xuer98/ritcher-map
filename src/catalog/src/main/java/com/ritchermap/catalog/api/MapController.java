@@ -1,6 +1,7 @@
 package com.ritchermap.catalog.api;
 
 import com.ritchermap.catalog.service.MapService;
+import com.ritchermap.catalog.service.MarkerService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,17 +15,24 @@ import java.util.List;
 public class MapController {
 
     private final MapService maps;
+    private final MarkerService markers;
 
-    public MapController(MapService maps) { this.maps = maps; }
+    public MapController(MapService maps, MarkerService markers) {
+        this.maps = maps;
+        this.markers = markers;
+    }
 
     @GetMapping
     public List<Dtos.MapResponse> list() {
-        return maps.list().stream().map(Dtos.MapResponse::from).toList();
+        var clicks = markers.clicksByMap(); // one rollup query for the whole list
+        return maps.list().stream()
+                .map(m -> Dtos.MapResponse.from(m, clicks.getOrDefault(m.getId(), 0L)))
+                .toList();
     }
 
     @GetMapping("/{id}")
     public Dtos.MapResponse get(@PathVariable long id) {
-        return Dtos.MapResponse.from(maps.get(id));
+        return Dtos.MapResponse.from(maps.get(id), markers.clicksForMap(id));
     }
 
     @PostMapping

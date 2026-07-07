@@ -62,6 +62,12 @@ public final class Dtos {
             String format                      // optional; defaults to webp
     ) {}
 
+    /**
+     * {@code popularity} is the map's total marker clicks (see V8), aggregated
+     * on the read endpoints (list/get) to power the webapp's Popular sort.
+     * Write-path echoes (create/update/tiling) report 0 rather than paying the
+     * aggregate query — the admin console doesn't display it.
+     */
     public record MapResponse(
             long id,
             String gameSlug,
@@ -77,14 +83,19 @@ public final class Dtos {
             int tileSize,
             String format,
             Instant createdAt,
-            Instant updatedAt
+            Instant updatedAt,
+            long popularity
     ) {
         public static MapResponse from(GameMap m) {
+            return from(m, 0L);
+        }
+
+        public static MapResponse from(GameMap m, long popularity) {
             return new MapResponse(
                     m.getId(), m.getGameSlug(), m.getMapSlug(), m.getName(), m.getPrefix(),
                     m.getStatus(), m.getWidth(), m.getHeight(), m.getMaxZoom(),
                     m.getMinZoom(), m.getSortOrder(), m.getTileSize(), m.getFormat(),
-                    m.getCreatedAt(), m.getUpdatedAt()
+                    m.getCreatedAt(), m.getUpdatedAt(), popularity
             );
         }
     }

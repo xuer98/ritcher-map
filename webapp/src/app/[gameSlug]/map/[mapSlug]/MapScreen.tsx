@@ -111,6 +111,11 @@ export function MapScreen({
     setCustomTarget(null);
     setCustomError(null);
     setHiddenCustomIds(new Set());
+    // Re-arm the loading overlay: switching maps rebuilds the MapView map, so
+    // onTilesLoaded fires again. allMarkers goes back to null (not the old
+    // map's stale list) so the overlay + search hold until the refetch lands.
+    setTilesLoaded(false);
+    setAllMarkers(null);
   }, [meta.id]);
 
   // Category ids that are HIDDEN; an empty set means everything is shown.
@@ -141,6 +146,8 @@ export function MapScreen({
   // Full catalog marker list (titles + descriptions): powers search and the
   // detail panel — the viewport endpoint intentionally omits descriptions.
   const [allMarkers, setAllMarkers] = useState<CatalogMarker[] | null>(null);
+  // First visually complete map render (style + initial tiles), per map.
+  const [tilesLoaded, setTilesLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -435,6 +442,17 @@ export function MapScreen({
   const pct = total > 0 ? Math.round((foundCount / total) * 100) : 0;
   // "Hide all" flips to "Show all" once every category is hidden.
   const allHidden = allCatIds.length > 0 && hiddenCats.size >= allCatIds.length;
+  // Loading overlay: covers the map until the first complete render (style +
+  // initial tiles) AND the marker list have both landed. Mirrors MapView's
+  // internal isReady gate (which can't be imported here — the module is
+  // client-only via dynamic(ssr:false)): a non-renderable map never creates a
+  // MapLibre instance, so onTilesLoaded would never fire — don't wait on it.
+  const mapRenderable =
+    meta.status === "READY" &&
+    meta.width !== null &&
+    meta.height !== null &&
+    meta.maxZoom !== null;
+  const mapLoading = mapRenderable && (!tilesLoaded || allMarkers === null);
 
   return (
     <BrandTheme game={game} className="relative h-dvh w-full overflow-hidden">
@@ -481,7 +499,28 @@ export function MapScreen({
           onCustomMarkerDragEnd={onCustomDragEnd}
           onMapClick={onMapClickPlace}
           placing={placing}
+          onTilesLoaded={() => setTilesLoaded(true)}
         />
+        {mapLoading && (
+          <div
+            role="status"
+            aria-live="polite"
+            // Same hex as the map style's background layer, so dismissal reveals
+            // the map without a color jump. Sits above the canvas but inside the
+            // z-0 map wrapper, leaving the sidebar/chrome interactive.
+            className="absolute inset-0 z-10 grid place-items-center bg-[#0b0d10]"
+          >
+            <div className="flex items-center gap-3 rounded-full bg-panel px-5 py-3 shadow-panel">
+              <span
+                aria-hidden="true"
+                className="h-4 w-4 animate-spin rounded-full border-2 border-fg-dim border-t-transparent"
+              />
+              <span className="text-sm text-fg-dim">
+                {tilesLoaded ? "Loading markers…" : "Loading map…"}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {!sidebarOpen && (

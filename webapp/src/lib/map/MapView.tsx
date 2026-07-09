@@ -84,6 +84,13 @@ export interface MapViewProps {
    */
   onMarkerDragEnd?: (markerId: number, point: { x: number; y: number }) => void;
   /**
+   * Fires once per map instance at MapLibre's `load` — the first visually
+   * complete render (style + the initial viewport's tiles). Re-fires for the
+   * new map when `meta.id` changes (the map is rebuilt). The player view uses
+   * it to dismiss its loading overlay.
+   */
+  onTilesLoaded?: () => void;
+  /**
    * categoryId -> resolved icon URL. Markers in these categories render as the
    * icon image once it loads; everything else stays a colored circle.
    */
@@ -308,6 +315,7 @@ export const MapView: React.FC<MapViewProps> = ({
   focus = null,
   onMapClick,
   onMarkerDragEnd,
+  onTilesLoaded,
   categoryIcons,
   regions,
   regionFocus = null,
@@ -344,6 +352,8 @@ export const MapView: React.FC<MapViewProps> = ({
   onMapClickRef.current = onMapClick;
   const onMarkerDragEndRef = useRef(onMarkerDragEnd);
   onMarkerDragEndRef.current = onMarkerDragEnd;
+  const onTilesLoadedRef = useRef(onTilesLoaded);
+  onTilesLoadedRef.current = onTilesLoaded;
   // Latest rendered marker FeatureCollection, so the once-bound drag handler can
   // move a single feature in place without rebuilding it from the prop.
   const markerFcRef =
@@ -394,6 +404,10 @@ export const MapView: React.FC<MapViewProps> = ({
     map.addControl(new maplibregl.NavigationControl({}), "top-right");
     mapRef.current = map;
     setMapInstance(map);
+    // Registered synchronously at construction, so `load` cannot already have
+    // fired — the once-handler race this file guards against elsewhere only
+    // affects handlers registered later, from re-running effects.
+    map.once("load", () => onTilesLoadedRef.current?.());
     if (process.env.NODE_ENV !== "production") {
       // Dev-only debugging handle (e.g. __rmMap.getStyle() in the console).
       const w = window as unknown as {

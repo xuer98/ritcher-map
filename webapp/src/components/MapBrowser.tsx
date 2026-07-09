@@ -121,18 +121,21 @@ function GameCard({ g }: { g: GameSummary }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent"
       />
+      {/* Game name over the top of the thumbnail; its own gradient keeps the
+          text legible on bright cover art. */}
+      <span className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/75 via-black/35 to-transparent p-3 pb-8">
+        <span className="text-sm font-semibold leading-snug text-white drop-shadow">
+          {g.title}
+        </span>
+      </span>
       <span className="relative z-10 flex flex-col gap-1 p-3">
-        {logo ? (
+        {logo && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logo}
-            alt={g.title}
+            alt=""
             className="max-h-12 w-auto max-w-full self-start object-contain object-left drop-shadow-lg"
           />
-        ) : (
-          <span className="text-base font-bold leading-tight text-white">
-            {g.title}
-          </span>
         )}
         <span className="text-xs text-white/70">
           {g.maps.length} map{g.maps.length === 1 ? '' : 's'}

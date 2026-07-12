@@ -35,6 +35,16 @@ export const ASSET_BASE_URL: string = (
   process.env.NEXT_PUBLIC_ASSET_BASE_URL ?? ''
 ).replace(/\/+$/, '');
 
+/**
+ * Google OAuth client ID for "Sign in with Google" (Google Identity Services).
+ * When unset, the Google button is hidden and only email/password auth is
+ * offered. Must be the SAME client id the accounts service verifies against
+ * (its GOOGLE_CLIENT_ID env var), and the site origin must be listed under the
+ * client's "Authorized JavaScript origins" in the Google Cloud console.
+ */
+export const GOOGLE_CLIENT_ID: string =
+  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+
 /** WebSocket URL: GATEWAY_URL with http->ws / https->wss, plus '/ws'. */
 export const WS_URL: string =
   GATEWAY_URL.replace(/^http(s?):\/\//, (_m, s: string) => `ws${s}://`) + '/ws';

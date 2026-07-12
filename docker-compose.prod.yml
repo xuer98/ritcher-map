@@ -112,6 +112,11 @@ services:
       DATABASE_NAME: ${ACCOUNTS_DB:-ritchermap_accounts}
       # Shared HS256 secret with the gateway — must equal JWT_SECRET.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      # Google OAuth client id for "Sign in with Google" (same value the
+      # webapp builds with as NEXT_PUBLIC_GOOGLE_CLIENT_ID). Optional:
+      # when empty, POST /auth/google answers 503 and the webapp hides
+      # the button.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     depends_on:
       db:
         condition: service_healthy

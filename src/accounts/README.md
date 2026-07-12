@@ -32,6 +32,9 @@ GET  /healthz
 
 POST /auth/register    {email, password}  -> {token, user}     public
 POST /auth/login       {email, password}  -> {token, user}     public
+POST /auth/google      {credential}       -> {token, user}     public
+     (credential = Google ID token from the GIS button; verified against
+      GOOGLE_CLIENT_ID, then find-by-google_uid / link-by-email / create)
 GET  /account/me                          -> {user, subscription}   (Bearer)
 POST /billing/checkout                     -> {checkout_url}         (Bearer)
 POST /billing/webhook                      Stripe -> 200/4xx    (signature-verified)
@@ -62,6 +65,10 @@ JWT_SECRET=dev-secret \           # MUST match the gateway's JWT_SECRET
 FRONTEND_URL=http://localhost:5173 \
 rails server -p 8083
 ```
+
+Google sign-in is optional — without `GOOGLE_CLIENT_ID` (the OAuth web client
+id, same value the webapp builds with as `NEXT_PUBLIC_GOOGLE_CLIENT_ID`),
+`POST /auth/google` returns 503 and everything else works normally.
 
 Billing is optional locally — without `STRIPE_SECRET_KEY` the app boots fine and
 `/billing/*` returns 503. To enable it:

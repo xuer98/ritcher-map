@@ -8,7 +8,12 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import { login as apiLogin, register as apiRegister, getMe } from '../api/auth';
+import {
+  login as apiLogin,
+  loginWithGoogle as apiLoginWithGoogle,
+  register as apiRegister,
+  getMe,
+} from '../api/auth';
 import { ApiError, getAuthToken, setAuthToken } from '../api/client';
 import type { AccountUser } from '../types';
 
@@ -21,6 +26,8 @@ export interface AuthState {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
+  /** Sign in with a Google ID token (the GIS button's `credential`). */
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   refreshMe: () => Promise<void>;
 }
@@ -143,6 +150,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     [applyToken],
   );
 
+  const loginWithGoogle = useCallback(
+    async (credential: string) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const res = await apiLoginWithGoogle(credential);
+        applyToken(res.token);
+        setUser(res.user);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Google sign-in failed');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyToken],
+  );
+
   const register = useCallback(
     async (email: string, password: string) => {
       setError(null);
@@ -168,6 +193,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     error,
     login,
     register,
+    loginWithGoogle,
     logout,
     refreshMe,
   };

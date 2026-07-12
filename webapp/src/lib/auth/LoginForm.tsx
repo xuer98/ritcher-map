@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from './AuthContext';
+import { GoogleSignInButton } from './GoogleSignInButton';
 import { ApiError } from '../api/client';
+import { GOOGLE_CLIENT_ID } from '../config';
 
 export interface LoginFormProps {
   onClose?: () => void;
@@ -125,6 +127,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onClose }) => {
               : 'Sign up'}
         </button>
       </form>
+
+      {GOOGLE_CLIENT_ID && (
+        <>
+          <div className="flex items-center gap-3 text-fg-dim text-[12px]">
+            <span className="h-px flex-1 bg-edge" aria-hidden />
+            or
+            <span className="h-px flex-1 bg-edge" aria-hidden />
+          </div>
+          <GoogleSignInButton
+            onSuccess={onClose}
+            onError={(message) => setErrors([message])}
+          />
+        </>
+      )}
 
       <button
         type="button"

@@ -5,6 +5,7 @@ Rails.application.routes.draw do
   namespace :auth do
     post "register", to: "registrations#create"
     post "login",    to: "sessions#create"
+    post "google",   to: "google_sessions#create"
   end
 
   # Authenticated. The gateway proxies /account/* with a validated token.
